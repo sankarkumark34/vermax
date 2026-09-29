@@ -21,7 +21,7 @@ export interface Pick {
   themeBoost: boolean; close: number; changePct: number; inPriceBand: boolean; turnover20Cr: number
   atrPct: number; rsi: number; volRatio: number | null; delivPct: number | null; rs60: number | null
   sectorRank: number | null; tags: string[]; reasons: Reason[]; plan: TradePlan
-  list: 'core' | 'theme'; decision: 'BUY' | 'WATCH' | 'REJECT'; rejectReasons: string[]
+  list: 'core' | 'theme' | 'elite'; decision: 'BUY' | 'WATCH' | 'REJECT'; rejectReasons: string[]
   fundamentals: Fundamentals | null; sentiment: Sentiment | null; sizing: Sizing
 }
 export interface SectorRow {
@@ -38,7 +38,7 @@ export interface Run {
   model: { trainedTo: string; trainedAt: string; rounds: number }
   universe: { liquidStocks: number; priceBand: [number, number]; inBand: number }
   regime: Regime; config: { minRet10?: number; tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number }
-  core: Pick[]; theme: Pick[]; rejected: Pick[]; sectors: SectorRow[]; disclaimer: string
+  core: Pick[]; theme: Pick[]; elite?: Pick[]; rejected: Pick[]; sectors: SectorRow[]; disclaimer: string
 }
 export interface PipelineState { running: boolean; step: string; startedAt: string | null; finishedAt: string | null; error: string | null; lastAsOf: string | null }
 export interface JournalStats {
@@ -68,4 +68,10 @@ export interface Performance {
   variants: Variant[]; ic: Record<string, { meanIC: number; ir: number }>
   deciles: { decile: number; avgFwdPct: number; hit3Pct: number }[]
   theme: Record<string, unknown>
+  elite?: { rule: string; elite: EliteStats; baselineTop3Weekly: EliteStats }
+}
+export interface EliteStats {
+  trades: number; weeks: number; t1HitPct: number; stopPct: number; positivePct: number; expectancyPct: number
+  avgWinPct: number; avgLossPct: number; weeksAtLeast1T1Pct: number; weeksAtLeast2T1Pct: number; weeksAllThreeLosePct: number
+  byYear: Record<string, { t1HitPct: number; expectancyPct: number }>
 }

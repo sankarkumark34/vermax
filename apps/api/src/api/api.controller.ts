@@ -109,7 +109,7 @@ export class ApiController {
     const symbol = raw.toUpperCase();
     if (!SYMBOL.test(symbol)) throw new BadRequestException('bad symbol');
     const bars = await this.ds.query(
-      `SELECT date, open, high, low, close, volume, "deliveryPct" AS deliveryPct FROM daily_bars WHERE symbol = ? ORDER BY date DESC LIMIT 180`,
+      `SELECT date, open, high, low, close, volume, "deliveryPct" AS deliveryPct FROM daily_bars WHERE symbol = ? ORDER BY date DESC LIMIT 420`,
       [symbol],
     );
     if (!bars.length) throw new NotFoundException(`No price history for ${symbol}`);

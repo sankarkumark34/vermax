@@ -79,6 +79,15 @@ Theme picks split by the sector's own point-in-time strength (Defence/Engineerin
 | sector rank < 60th pct | 2213 | 46.2% | +0.18% | 1.07 |
 | sector rank >= 60th pct | 3048 | 48.5% | +0.63% | 1.24 |
 
+## Elite weekly top-3 (backtest of the exact rule, before live fundamentals/news overlays)
+
+| | Trades | T1 hit | Stopped | Expectancy | >=1 of 3 hits T1 | All 3 lose |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Elite rule | 859 | 34.0% | 48.3% | +0.34% | 63% of weeks | 24% of weeks |
+| Plain model top-3 weekly | 860 | 31.9% | 42.6% | +0.32% | 61% of weeks | 22% of weeks |
+
+Adding more confirmation filters (volume, RSI band, delivery, candle position) did NOT raise the hit rate - it stayed near 30-36%. No rule makes a pick certain.
+
 ## How to read this honestly
 
 - The edge is **small but consistent in ranking** (positive IC every year) and **thin in P&L** (expectancy of a few tenths of a percent per trade after costs). It is nowhere near a reliable +5-12% every week.

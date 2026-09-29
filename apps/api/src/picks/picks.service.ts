@@ -85,10 +85,11 @@ export class PicksService {
     // Overlay pool: enough candidates that vetoes still leave a full list.
     const corePool = file.picks.slice(0, this.cfg.picks.shortlist);
     const themePool = file.themeWatch.slice(0, this.cfg.picks.shortlist);
-    const symbols = [...new Set([...corePool, ...themePool].map((p) => p.symbol))];
+    const elitePool = (file.elite ?? []).slice(0, this.cfg.picks.shortlist);
+    const symbols = [...new Set([...corePool, ...themePool, ...elitePool].map((p) => p.symbol))];
 
     this.step(`fundamentals for ${symbols.length} stocks`);
-    const sectorMap = Object.fromEntries([...corePool, ...themePool].map((p) => [p.symbol, p.sector]));
+    const sectorMap = Object.fromEntries([...corePool, ...themePool, ...elitePool].map((p) => [p.symbol, p.sector]));
     let fundList: Fundamentals[] = [];
     try {
       fundList = await this.bridge.run<Fundamentals[]>('fundamentals', { symbols, sectors: sectorMap }, 30 * 60_000);
@@ -107,7 +108,7 @@ export class PicksService {
     }
 
     this.step('assembling final picks');
-    const enrich = (p: PyPick, list: 'core' | 'theme'): EnrichedPick => {
+    const enrich = (p: PyPick, list: 'core' | 'theme' | 'elite'): EnrichedPick => {
       const f = fund.get(p.symbol) ?? null;
       const s = sent.get(p.symbol) ?? null;
       const reasons: string[] = [];
@@ -135,6 +136,12 @@ export class PicksService {
     };
     const coreAll = corePool.map((p) => enrich(p, 'core'));
     const themeAll = themePool.map((p) => enrich(p, 'theme'));
+    const eliteAll = elitePool.map((p) => enrich(p, 'elite'));
+    // Elite = strictest: fundamentals must PASS and news must not be negative (quality over quantity, max 3).
+    const elite = eliteAll
+      .filter((p) => p.decision !== 'REJECT' && p.fundamentals?.verdict === 'PASS' && (p.sentiment?.score ?? 0) > -0.15)
+      .slice(0, 3)
+      .map((p) => ({ ...p, decision: 'BUY' as const }));
     const core = coreAll.filter((p) => p.decision !== 'REJECT').slice(0, this.cfg.picks.finalCore);
     const theme = themeAll.filter((p) => p.decision !== 'REJECT').slice(0, this.cfg.picks.finalTheme);
     const rejected = [...coreAll, ...themeAll].filter((p, i, a) => p.decision === 'REJECT' && a.findIndex((q) => q.symbol === p.symbol) === i);
@@ -149,6 +156,7 @@ export class PicksService {
       config: file.config,
       core,
       theme,
+      elite,
       rejected,
       sectors: file.sectors,
       disclaimer: DISCLAIMER,
@@ -167,11 +175,11 @@ export class PicksService {
 
     // Journal: one paper trade per published symbol (core wins if a stock is in both lists).
     // A re-run for the same signal date replaces earlier untouched (PENDING) picks that are no longer published.
-    const published = new Set([...run.core, ...run.theme].map((p) => p.symbol));
+    const published = new Set([...run.elite, ...run.core, ...run.theme].map((p) => p.symbol));
     const stale = await this.picks.find({ where: { asOf: run.asOf, status: 'PENDING' } });
     for (const s of stale) if (!published.has(s.symbol)) await this.picks.delete({ id: s.id });
     const seen = new Set<string>();
-    for (const p of [...run.core, ...run.theme]) {
+    for (const p of [...run.elite, ...run.core, ...run.theme]) {
       if (seen.has(p.symbol)) continue;
       seen.add(p.symbol);
       const prior = await this.picks.findOne({ where: { asOf: run.asOf, symbol: p.symbol } });

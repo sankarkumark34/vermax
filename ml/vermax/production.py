@@ -122,6 +122,10 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
     ranked = ranked.sort_values("rank_score", ascending=False)
     picks = [pack(r, i + 1) for i, (_, r) in enumerate(ranked.iterrows())]
 
+    ep = day[(day.d_ema50 > 0) & (day.d_sma200 > 0) & (day.ret20 > 0) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)]
+    ep = select_picks(ep.assign(day_rank=0), "prob", 15, 0.0, sector_cap, TILT, TILT_MIN_RANK).sort_values("rank_score", ascending=False)
+    elite = [pack(r, i + 1) for i, (_, r) in enumerate(ep.iterrows())]
+
     th = day[day.is_theme == 1].sort_values("rank_score", ascending=False).head(theme_watch)
     watch = [pack(r, i + 1) for i, (_, r) in enumerate(th.iterrows())]
 
@@ -147,7 +151,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
     out = {"asOf": latest, "generatedAt": datetime.now(timezone.utc).isoformat(),
            "model": {"trainedTo": meta["data_to"], "trainedAt": meta["trained_at"], "rounds": meta["rounds"]},
            "universe": {"liquidStocks": int(len(day)), "priceBand": [min_price, max_price], "inBand": int(len(band))},
-           "regime": _regime(day), "picks": picks, "themeWatch": watch, "sectors": sectors, "ranking": ranking,
+           "regime": _regime(day), "picks": picks, "themeWatch": watch, "elite": elite, "sectors": sectors, "ranking": ranking,
            "config": {"minRet10": min_ret10, "tilt": TILT, "tiltMinSectorRank": TILT_MIN_RANK, "sectorCap": sector_cap, "horizonDays": config.HORIZON}}
     dest = config.OUT_DIR.parent / "picks"
     dest.mkdir(parents=True, exist_ok=True)

@@ -81,6 +81,7 @@ export interface PyScoreFile {
   regime: PyRegime;
   picks: PyPick[];
   themeWatch: PyPick[];
+  elite: PyPick[];
   sectors: PySector[];
   ranking: { symbol: string; sector: string; score: number; rankScore: number; close: number; changePct: number }[];
   config: { tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number };
@@ -116,7 +117,7 @@ export interface Sizing {
 }
 
 export interface EnrichedPick extends PyPick {
-  list: 'core' | 'theme';
+  list: 'core' | 'theme' | 'elite';
   decision: Decision;
   rejectReasons: string[];
   fundamentals: Fundamentals | null;
@@ -134,6 +135,7 @@ export interface PublishedRun {
   config: PyScoreFile['config'];
   core: EnrichedPick[];
   theme: EnrichedPick[];
+  elite: EnrichedPick[];
   rejected: EnrichedPick[];
   sectors: PySector[];
   disclaimer: string;

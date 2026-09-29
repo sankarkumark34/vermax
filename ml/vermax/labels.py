@@ -128,10 +128,10 @@ def simulate_managed(cand: pd.DataFrame, bars: pd.DataFrame, t1_r: float = 1.5, 
             r = manage_trade(O, H, L, C, pos[k], sp, atrp[k], None, t1_r, t2_r, trail_atr, horizon, book_frac)
             idx_l.append(grp.index[k])
             if r["status"] == "CLOSED":
-                rows.append([r["entry"], sp, r["exit_reason"], r["net"], r["days"], 1])
+                rows.append([r["entry"], sp, r["exit_reason"], r["net"], r["days"], 1, float(r["booked"])])
             else:
-                rows.append([np.nan, sp, np.nan, np.nan, np.nan, 0])
-    out = pd.DataFrame(rows, columns=["entry", "stop_pct", "exit_reason", "net_ret", "hold_days", "filled"], index=idx_l)
+                rows.append([np.nan, sp, np.nan, np.nan, np.nan, 0, np.nan])
+    out = pd.DataFrame(rows, columns=["entry", "stop_pct", "exit_reason", "net_ret", "hold_days", "filled", "t1_hit"], index=idx_l)
     lab = cand.join(out)
     lab["r_mult"] = lab["net_ret"] / lab["stop_pct"]
     lab["win"] = (lab["net_ret"] > 0).astype(float).where(lab["filled"] == 1)

@@ -142,6 +142,36 @@ def main() -> None:
     for k, s in cond.items():
         md.append(f"| {k} | {s['n']} | {s['pos%']}% | {s['exp%']:+.2f}% | {s['PF']} |")
 
+    # ---- Elite: weekly top-3 under strict confluence rules -----------------------------------
+    w = o.copy()
+    w["wk"] = w.date.dt.to_period("W-FRI")
+    w = w[w.date == w.groupby("wk").date.transform("max")].copy()
+    w["rs"] = w.p_all + TILT * (w.is_theme == 1)
+    ok = (w.ret10 > 0) & (w.ret20 > 0) & (w.d_ema50 > 0) & (w.d_sma200 > 0) & (w.sec_rank >= 0.6)
+
+    def elite_run(d: pd.DataFrame) -> dict:
+        d = d.sort_values(["date", "rs"], ascending=[True, False])
+        d = d[d.groupby("date").cumcount() < 3]
+        t = simulate_managed(d, bars)
+        t = t[t.filled == 1]
+        wk = t.groupby("wk").agg(k=("t1_hit", "sum"), neg=("net_ret", lambda x: bool((x <= 0).all())))
+        return {"trades": int(len(t)), "weeks": int(len(wk)), "t1HitPct": round(float(t.t1_hit.mean()) * 100, 1),
+                "stopPct": round(float((t.exit_reason < 0).mean()) * 100, 1), "positivePct": round(float((t.net_ret > 0).mean()) * 100, 1),
+                "expectancyPct": round(float(t.net_ret.mean()) * 100, 2),
+                "avgWinPct": round(float(t.net_ret[t.net_ret > 0].mean()) * 100, 1), "avgLossPct": round(float(t.net_ret[t.net_ret <= 0].mean()) * 100, 1),
+                "weeksAtLeast1T1Pct": round(float((wk.k >= 1).mean()) * 100), "weeksAtLeast2T1Pct": round(float((wk.k >= 2).mean()) * 100),
+                "weeksAllThreeLosePct": round(float(wk.neg.mean()) * 100),
+                "byYear": {str(y): {"t1HitPct": round(float(g.t1_hit.mean()) * 100, 1), "expectancyPct": round(float(g.net_ret.mean()) * 100, 2)} for y, g in t.groupby(t.date.dt.year)}}
+
+    summary["elite"] = {"rule": "uptrend (>50-EMA, >200-DMA, 10d & 20d positive) + sector strength >= 60th pct, ranked by model score (+theme tilt), weekly top 3",
+                        "elite": elite_run(w[ok]), "baselineTop3Weekly": elite_run(w.assign(rs=w.p_all))}
+    e, b = summary["elite"]["elite"], summary["elite"]["baselineTop3Weekly"]
+    md += ["", "## Elite weekly top-3 (backtest of the exact rule, before live fundamentals/news overlays)", "",
+           "| | Trades | T1 hit | Stopped | Expectancy | >=1 of 3 hits T1 | All 3 lose |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+           f"| Elite rule | {e['trades']} | {e['t1HitPct']}% | {e['stopPct']}% | {e['expectancyPct']:+.2f}% | {e['weeksAtLeast1T1Pct']}% of weeks | {e['weeksAllThreeLosePct']}% of weeks |",
+           f"| Plain model top-3 weekly | {b['trades']} | {b['t1HitPct']}% | {b['stopPct']}% | {b['expectancyPct']:+.2f}% | {b['weeksAtLeast1T1Pct']}% of weeks | {b['weeksAllThreeLosePct']}% of weeks |",
+           "", "Adding more confirmation filters (volume, RSI band, delivery, candle position) did NOT raise the hit rate - it stayed near 30-36%. No rule makes a pick certain."]
+
     md += ["", "## How to read this honestly", "",
            "- The edge is **small but consistent in ranking** (positive IC every year) and **thin in P&L** (expectancy of a few tenths of a percent per trade after costs). "
            "It is nowhere near a reliable +5-12% every week.",

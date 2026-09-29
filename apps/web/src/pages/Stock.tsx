@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import PriceChart from '../components/PriceChart'
 import { useParams } from 'react-router'
 import { Chip, ErrorBox, Loading, Section, Stat } from '../components/ui'
 import { api } from '../lib/api'
@@ -17,8 +17,7 @@ export default function Stock() {
   const first20 = d.bars.at(-21) ?? d.bars[0]
   const ret20 = last.close / first20.close - 1
   const hi = Math.max(...d.bars.map((b) => b.high))
-  const chart = d.bars.map((b) => ({ date: b.date.slice(5), close: b.close }))
-  const f = d.fundamentals
+    const f = d.fundamentals
   const n = d.sentiment
 
   return (
@@ -32,24 +31,13 @@ export default function Stock() {
         <div className="mt-4 grid grid-cols-2 gap-5 sm:grid-cols-4">
           <Stat label="Last close" value={`₹${inr(last.close)}`} sub={last.date} />
           <Stat label="20-day" value={pct(ret20, 1, true)} tone={tone(ret20)} />
-          <Stat label="From 180d high" value={pctRaw((last.close / hi - 1) * 100)} tone={tone(last.close / hi - 1)} />
+          <Stat label="From 1Y high" value={pctRaw((last.close / hi - 1) * 100)} tone={tone(last.close / hi - 1)} />
           <Stat label="Model rank" value={d.model ? `#${d.model.modelRank}` : 'n/a'} sub={d.model ? `of ${d.model.of} liquid · score ${(d.model.score * 100).toFixed(1)}` : 'not in liquid universe'} />
         </div>
       </div>
 
-      <Section title="Price · last 180 sessions">
-        <div className="card h-72 p-3">
-          <ResponsiveContainer>
-            <AreaChart data={chart}>
-              <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0a7a52" stopOpacity={0.35} /><stop offset="100%" stopColor="#0a7a52" stopOpacity={0} /></linearGradient></defs>
-              <CartesianGrid stroke="#e4e8ef" vertical={false} />
-              <XAxis dataKey="date" stroke="#8492a6" fontSize={11} minTickGap={40} />
-              <YAxis stroke="#8492a6" fontSize={11} domain={['auto', 'auto']} width={56} />
-              <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e4e8ef', borderRadius: 8, fontSize: 12 }} />
-              <Area dataKey="close" stroke="#0a7a52" strokeWidth={2} fill="url(#g)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+      <Section title="Price">
+        <PriceChart bars={d.bars} />
       </Section>
 
       <Section title="Fundamentals & news" right={!deep && <button onClick={() => setDeep(true)} className="rounded-lg border border-pos/30 bg-pos-bg px-3 py-1.5 text-sm text-pos hover:bg-pos-bg/70">Load deep analysis</button>}>

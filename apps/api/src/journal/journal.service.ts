@@ -98,6 +98,6 @@ export class JournalService {
         worstPct: rets.length ? pct(Math.min(...rets)) : null,
       };
     };
-    return { ...calc(rows), byList: { core: calc(rows.filter((r) => r.list === 'core')), theme: calc(rows.filter((r) => r.list === 'theme')) } };
+    return { ...calc(rows), byList: { core: calc(rows.filter((r) => r.list === 'core')), theme: calc(rows.filter((r) => r.list === 'theme')), elite: calc(rows.filter((r) => r.list === 'elite')) } };
   }
 }

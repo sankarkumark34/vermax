@@ -11,7 +11,7 @@ export class PickEntity {
   id: number;
 
   @Column({ type: 'varchar', length: 10 }) asOf: string;
-  @Column({ type: 'varchar', length: 8 }) list: 'core' | 'theme';
+  @Column({ type: 'varchar', length: 8 }) list: 'core' | 'theme' | 'elite';
   @Column({ type: 'varchar', length: 32 }) symbol: string;
   @Column({ type: 'varchar', length: 80 }) sector: string;
   @Column({ type: 'integer' }) rank: number;
