@@ -1,4 +1,5 @@
 /** Shapes of the JSON emitted by the Python scorer (ml/vermax/production.py) and the enriched payload we publish. */
+import type { CircuitSummary } from '../circuit/circuit.js';
 import type { SentimentResult } from '../sentiment/sentiment.service.js';
 
 export interface TradePlan {
@@ -116,6 +117,8 @@ export interface Sizing {
   positionPct: number;
 }
 
+export type CircuitBrief = Omit<CircuitSummary, 'list'>;
+
 export interface EnrichedPick extends PyPick {
   list: 'core' | 'theme' | 'elite';
   decision: Decision;
@@ -123,6 +126,7 @@ export interface EnrichedPick extends PyPick {
   fundamentals: Fundamentals | null;
   sentiment: SentimentResult | null;
   sizing: Sizing;
+  circuit: CircuitBrief | null;
 }
 
 export interface PublishedRun {

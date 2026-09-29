@@ -40,6 +40,47 @@ export default function Stock() {
         <PriceChart bars={d.bars} />
       </Section>
 
+      {d.circuit && (
+        <Section title="Lower-circuit history" sub="How long this stock took to get back to its pre-circuit price after hitting a lower circuit (NSE data since 2019).">
+          {d.circuit.events === 0 ? (
+            <div className="card p-5 text-sm text-sub">No lower-circuit days in the stored history for this stock.</div>
+          ) : (
+            <>
+              {d.circuit.lockedNow && <div className="card mb-3 border-neg/30 bg-neg-bg p-4 text-sm font-medium text-neg">Locked at lower circuit on the latest session — avoid fresh entries until it trades freely.</div>}
+              <div className="card grid grid-cols-2 gap-6 p-5 sm:grid-cols-3 lg:grid-cols-6">
+                <Stat label="LC events" value={d.circuit.events} sub={`${d.circuit.recoveredCount} fully recovered`} />
+                <Stat label="Median recovery" value={d.circuit.medianRecoveryDays != null ? `${d.circuit.medianRecoveryDays} d` : '-'} sub="sessions to regain price" />
+                <Stat label="Half recovery" value={d.circuit.medianHalfRecoveryDays != null ? `${d.circuit.medianHalfRecoveryDays} d` : '-'} sub="median" />
+                <Stat label="Within 10 days" value={d.circuit.recoveredWithin10Pct != null ? `${d.circuit.recoveredWithin10Pct}%` : '-'} sub="of events" />
+                <Stat label="Within 30 days" value={d.circuit.recoveredWithin30Pct != null ? `${d.circuit.recoveredWithin30Pct}%` : '-'} sub="of events" />
+                <Stat label="Further fall" value={pct(d.circuit.medianFurtherFallPct, 1)} tone="text-neg" sub="median, next 10 days" />
+              </div>
+              <div className="card mt-3 overflow-x-auto">
+                <table className="num w-full min-w-[720px] text-sm">
+                  <thead><tr className="border-b border-line text-left">
+                    {['Date', 'Band', 'Locked days', 'Fall', 'Further fall (10d)', 'Half back', 'Fully back', 'Status'].map((h) => <th key={h} className="label px-3 py-2.5 font-medium">{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {d.circuit.list.slice(0, 10).map((e) => (
+                      <tr key={e.date} className="border-b border-line">
+                        <td className="px-3 py-2">{e.date}</td>
+                        <td className="px-3 py-2">{e.band}%</td>
+                        <td className="px-3 py-2">{e.lockDays}</td>
+                        <td className="px-3 py-2 text-neg">{pct(e.dropPct, 1)}</td>
+                        <td className="px-3 py-2 text-neg">{pct(e.furtherFallPct, 1)}</td>
+                        <td className="px-3 py-2">{e.halfRecoveryDays != null ? `${e.halfRecoveryDays} d` : '-'}</td>
+                        <td className="px-3 py-2 font-medium">{e.recoveryDays != null ? `${e.recoveryDays} d` : '-'}</td>
+                        <td className="px-3 py-2">{e.recovered ? <Chip tone="green">Recovered</Chip> : <Chip tone="red">{pct(e.currentVsRefPct, 0, true)} vs pre-LC</Chip>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </Section>
+      )}
+
       <Section title="Fundamentals & news" right={!deep && <button onClick={() => setDeep(true)} className="rounded-lg border border-pos/30 bg-pos-bg px-3 py-1.5 text-sm text-pos hover:bg-pos-bg/70">Load deep analysis</button>}>
         {!deep ? <div className="card p-5 text-sm text-sub">Loads ROE / ROCE / debt / growth (Yahoo Finance) and the latest news sentiment. Takes a few seconds.</div> : q.isFetching && !f ? <Loading what="analysis" /> : (
           <div className="grid gap-4 md:grid-cols-2">

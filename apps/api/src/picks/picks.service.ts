@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { DataSource, Repository } from 'typeorm';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
 import { loadConfig } from '../config/app.config.js';
+import { CircuitService } from '../circuit/circuit.service.js';
 import { DataService } from '../data/data.service.js';
 import { PickEntity } from '../database/entities/pick.entity.js';
 import { PickRunEntity } from '../database/entities/pick-run.entity.js';
@@ -37,6 +38,7 @@ export class PicksService {
     private readonly data: DataService,
     private readonly sentiment: SentimentService,
     private readonly journal: JournalService,
+    private readonly circuits: CircuitService,
     @InjectDataSource() private readonly ds: DataSource,
     @InjectRepository(PickRunEntity) private readonly runs: Repository<PickRunEntity>,
     @InjectRepository(PickEntity) private readonly picks: Repository<PickEntity>,
@@ -108,6 +110,8 @@ export class PicksService {
     }
 
     this.step('assembling final picks');
+    const circ = new Map<string, Awaited<ReturnType<CircuitService['brief']>>>();
+    for (const sym of symbols) circ.set(sym, await this.circuits.brief(sym));
     const enrich = (p: PyPick, list: 'core' | 'theme' | 'elite'): EnrichedPick => {
       const f = fund.get(p.symbol) ?? null;
       const s = sent.get(p.symbol) ?? null;
@@ -124,6 +128,7 @@ export class PicksService {
         rejectReasons: reasons,
         fundamentals: f,
         sentiment: s,
+        circuit: circ.get(p.symbol) ?? null,
         sizing: positionSize({
           capital: this.cfg.picks.capital,
           riskPerTrade: this.cfg.picks.riskPerTrade,

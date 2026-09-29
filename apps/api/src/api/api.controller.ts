@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DataSource } from 'typeorm';
+import { CircuitService } from '../circuit/circuit.service.js';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
 import { loadConfig } from '../config/app.config.js';
 import { DataService } from '../data/data.service.js';
@@ -23,6 +24,7 @@ export class ApiController {
     private readonly data: DataService,
     private readonly sentiment: SentimentService,
     private readonly bridge: PythonBridgeService,
+    private readonly circuits: CircuitService,
     @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
@@ -115,7 +117,7 @@ export class ApiController {
     if (!bars.length) throw new NotFoundException(`No price history for ${symbol}`);
     const [info] = await this.ds.query('SELECT symbol, name, sector FROM stocks WHERE symbol = ?', [symbol]);
     const model = await this.picks.stockRank(symbol);
-    const out: Record<string, unknown> = { symbol, info: info ?? null, bars: bars.reverse(), model };
+    const out: Record<string, unknown> = { symbol, info: info ?? null, bars: bars.reverse(), model, circuit: await this.circuits.forSymbol(symbol) };
     if (deep === '1') {
       const [fund] = await this.bridge.run<Fundamentals[]>('fundamentals', { symbols: [symbol], sectors: { [symbol]: info?.sector ?? '' } }, 120_000).catch(() => [null as unknown as Fundamentals]);
       out.fundamentals = fund ?? null;

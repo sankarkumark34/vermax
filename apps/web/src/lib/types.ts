@@ -22,7 +22,7 @@ export interface Pick {
   atrPct: number; rsi: number; volRatio: number | null; delivPct: number | null; rs60: number | null
   sectorRank: number | null; tags: string[]; reasons: Reason[]; plan: TradePlan
   list: 'core' | 'theme' | 'elite'; decision: 'BUY' | 'WATCH' | 'REJECT'; rejectReasons: string[]
-  fundamentals: Fundamentals | null; sentiment: Sentiment | null; sizing: Sizing
+  fundamentals: Fundamentals | null; sentiment: Sentiment | null; sizing: Sizing; circuit?: CircuitBrief | null
 }
 export interface SectorRow {
   sector: string; isTheme: boolean; stocks: number; rank: number | null
@@ -56,7 +56,7 @@ export interface Bar { date: string; open: number; high: number; low: number; cl
 export interface StockResp {
   symbol: string; info: { name: string | null; sector: string } | null; bars: Bar[]
   model: { modelRank: number; of: number; score: number; rankScore: number; asOf: string } | null
-  fundamentals?: Fundamentals | null; sentiment?: Sentiment | null
+  fundamentals?: Fundamentals | null; sentiment?: Sentiment | null; circuit?: CircuitSummary
 }
 export interface Variant {
   name: string; n: number; 'win%': number; 'exp%': number; PF: number; 'pos%': number; 'CAGR%': number; 'maxDD%': number
@@ -75,3 +75,15 @@ export interface EliteStats {
   avgWinPct: number; avgLossPct: number; weeksAtLeast1T1Pct: number; weeksAtLeast2T1Pct: number; weeksAllThreeLosePct: number
   byYear: Record<string, { t1HitPct: number; expectancyPct: number }>
 }
+
+export interface CircuitEvent {
+  date: string; endDate: string; band: number; lockDays: number; refPrice: number; lockClose: number; dropPct: number
+  recovered: boolean; recoveryDays: number | null; halfRecoveryDays: number | null; furtherFallPct: number
+  daysSince: number; currentVsRefPct: number
+}
+export interface CircuitBrief {
+  events: number; recoveredCount: number; medianRecoveryDays: number | null; meanRecoveryDays: number | null
+  medianHalfRecoveryDays: number | null; recoveredWithin10Pct: number | null; recoveredWithin30Pct: number | null
+  medianFurtherFallPct: number | null; lastEventDate: string | null; lockedNow: boolean; recentDays: number | null
+}
+export interface CircuitSummary extends CircuitBrief { list: CircuitEvent[] }

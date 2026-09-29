@@ -100,6 +100,14 @@ export default function PickCard({ p, index, settings, multiplier }: { p: Pick; 
         <span>Risk <b className="num font-semibold text-ink">₹{inr0(s.risk)}</b></span>
         <span className="ml-auto flex items-center gap-1.5">
           {f && <Chip tone={vTone}>Fundamentals {f.verdict === 'UNKNOWN' ? 'n/a' : f.verdict.toLowerCase()}</Chip>}
+          {p.circuit && p.circuit.events > 0 && (
+            <Chip
+              tone={p.circuit.recentDays != null && p.circuit.recentDays <= 60 ? 'red' : 'gold'}
+              title={`Hit lower circuit ${p.circuit.events} times since 2019. Median ${p.circuit.medianRecoveryDays ?? 'n/a'} sessions to regain the pre-circuit price.`}
+            >
+              LC ×{p.circuit.events}{p.circuit.medianRecoveryDays != null ? ` · ~${p.circuit.medianRecoveryDays}d to recover` : ''}
+            </Chip>
+          )}
           {n && <Chip tone={n.label === 'POSITIVE' ? 'green' : n.label === 'NEGATIVE' ? 'red' : 'default'}>News {n.label.toLowerCase()}</Chip>}
         </span>
       </div>
