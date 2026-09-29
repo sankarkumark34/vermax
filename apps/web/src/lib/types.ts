@@ -50,6 +50,7 @@ export interface JournalPick {
   id: number; asOf: string; list: 'core' | 'theme'; symbol: string; sector: string; rank: number; score: number
   entryRef: number; stop: number; t1: number; t2: number; status: string; entry: number | null; t1Hit: boolean
   days: number; netRet: number | null; exitLabel: string | null; lastClose: number | null; stopNow: number | null; fundVerdict: string | null
+  circuit?: CircuitBrief | null
 }
 export interface Journal { stats: JournalStats & { byList: Record<string, JournalStats> }; picks: JournalPick[] }
 export interface Bar { date: string; open: number; high: number; low: number; close: number; volume: number; deliveryPct: number | null }

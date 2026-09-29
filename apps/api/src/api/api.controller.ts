@@ -77,7 +77,10 @@ export class ApiController {
   // ---- journal ---------------------------------------------------------------------------
   @Get('journal')
   async journalList() {
-    return { stats: await this.journal.stats(), picks: await this.journal.list(300) };
+    const picks = await this.journal.list(300);
+    const brief = new Map<string, Awaited<ReturnType<CircuitService['brief']>>>();
+    for (const sym of new Set(picks.map((p) => p.symbol))) brief.set(sym, await this.circuits.brief(sym));
+    return { stats: await this.journal.stats(), picks: picks.map((p) => ({ ...p, circuit: brief.get(p.symbol) ?? null })) };
   }
 
   @Post('journal/refresh')

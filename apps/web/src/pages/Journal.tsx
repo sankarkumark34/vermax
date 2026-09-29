@@ -33,12 +33,12 @@ export default function Journal() {
         right={<button onClick={() => refresh.mutate()} className="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm text-sub hover:text-ink"><RefreshCw className={clsx('size-4', refresh.isPending && 'animate-spin')} /> Update outcomes</button>}
       >
         <div className="card overflow-x-auto">
-          <table className="num w-full min-w-[900px] text-sm">
+          <table className="num w-full min-w-[1000px] text-sm">
             <thead><tr className="border-b border-line text-left">
-              {['Signal', 'List', 'Symbol', 'Sector', 'Entry', 'Stop', 'T1', 'T2', 'Status', 'Days', 'Net P&L', 'Exit'].map((h) => <th key={h} className="label px-3 py-2.5 font-medium">{h}</th>)}
+              {['Signal', 'List', 'Symbol', 'Sector', 'Entry', 'Stop', 'T1', 'T2', 'Status', 'Days', 'Net P&L', 'Exit', 'Avg LC recovery'].map((h) => <th key={h} className="label px-3 py-2.5 font-medium">{h}</th>)}
             </tr></thead>
             <tbody>
-              {picks.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-mute">No picks tracked yet. They appear after the first pipeline run.</td></tr>}
+              {picks.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-mute">No picks tracked yet. They appear after the first pipeline run.</td></tr>}
               {picks.map((p) => (
                 <tr key={p.id} className="border-b border-line">
                   <td className="px-3 py-2 text-sub">{p.asOf}</td>
@@ -53,6 +53,14 @@ export default function Journal() {
                   <td className="px-3 py-2">{p.days || '-'}</td>
                   <td className={clsx('px-3 py-2 font-medium', tone(p.netRet))}>{p.netRet != null ? pct(p.netRet, 2, true) : '-'}</td>
                   <td className="px-3 py-2 text-sub">{p.exitLabel ?? (p.status === 'OPEN' ? 'running' : '-')}</td>
+                  <td className="px-3 py-2">
+                    {p.circuit && p.circuit.events > 0 ? (
+                      <span title={`${p.circuit.events} lower circuits since 2019 · median ${p.circuit.medianRecoveryDays ?? '-'}d · ${p.circuit.recoveredWithin10Pct ?? '-'}% back within 10d · ${p.circuit.recoveredWithin30Pct ?? '-'}% within 30d`}>
+                        <b className="font-semibold text-ink">{p.circuit.meanRecoveryDays != null ? `${p.circuit.meanRecoveryDays}d` : 'n/a'}</b>
+                        <span className="ml-1 text-xs text-mute">({p.circuit.events} LC)</span>
+                      </span>
+                    ) : <span className="text-mute">No LC</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
