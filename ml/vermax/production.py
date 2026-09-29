@@ -79,7 +79,7 @@ def _plan(r: pd.Series) -> dict:
 
 
 def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.0, sector_cap: int = 2,
-          theme_watch: int = 12, lookback_days: int = 900) -> dict:
+          theme_watch: int = 12, lookback_days: int = 900, min_ret10: float = 0.0) -> dict:
     if not MODEL_FILE.exists():
         raise SystemExit("model missing - run `train` first")
     model = lgb.Booster(model_file=str(MODEL_FILE))
@@ -100,6 +100,8 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
     strong = (day.is_theme == 1) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)
     day["rank_score"] = day["prob"] + TILT * strong.astype(float)
     day["date"] = pd.Timestamp(latest)
+    ranking_pool = day                                                   # full ranking (stock page) ignores the filter
+    day = day[day.ret10 > min_ret10]                                     # user rule: last 2 weeks (10 sessions) must be positive
 
     def pack(r: pd.Series, rank: int) -> dict:
         return {"rank": rank, "symbol": r["symbol"], "sector": r["sector"], "isTheme": bool(r["is_theme"]),
@@ -123,7 +125,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
     th = day[day.is_theme == 1].sort_values("rank_score", ascending=False).head(theme_watch)
     watch = [pack(r, i + 1) for i, (_, r) in enumerate(th.iterrows())]
 
-    sec = (day[day.sector != "Other"].groupby("sector")
+    sec = (ranking_pool[ranking_pool.sector != "Other"].groupby("sector")
            .agg(n=("symbol", "size"), rank=("sec_rank", "first"), ret5=("sec_ret5", "first"), ret20=("sec_ret20", "first"),
                 ret60=("sec_ret60", "first"), rs20=("sec_rs20", "first"), rs60=("sec_rs60", "first"),
                 breadth=("sec_breadth50", "first"), avgScore=("prob", "mean"), best=("rank_score", "max"))
@@ -138,7 +140,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
                         "rs60": round(float(s["rs60"]), 4), "breadth50": round(float(s["breadth"]), 3),
                         "avgScore": round(float(s["avgScore"]), 4), "top": list(top["symbol"])})
 
-    ranked_all = day.sort_values("rank_score", ascending=False)
+    ranked_all = ranking_pool.sort_values("rank_score", ascending=False)
     ranking = [{"symbol": r.symbol, "sector": r.sector, "score": round(float(r.prob), 4), "rankScore": round(float(r.rank_score), 4),
                 "close": round(float(r.close), 2), "changePct": round(float(r.ret1) * 100, 2)} for r in ranked_all.itertuples()]
 
@@ -146,7 +148,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
            "model": {"trainedTo": meta["data_to"], "trainedAt": meta["trained_at"], "rounds": meta["rounds"]},
            "universe": {"liquidStocks": int(len(day)), "priceBand": [min_price, max_price], "inBand": int(len(band))},
            "regime": _regime(day), "picks": picks, "themeWatch": watch, "sectors": sectors, "ranking": ranking,
-           "config": {"tilt": TILT, "tiltMinSectorRank": TILT_MIN_RANK, "sectorCap": sector_cap, "horizonDays": config.HORIZON}}
+           "config": {"minRet10": min_ret10, "tilt": TILT, "tiltMinSectorRank": TILT_MIN_RANK, "sectorCap": sector_cap, "horizonDays": config.HORIZON}}
     dest = config.OUT_DIR.parent / "picks"
     dest.mkdir(parents=True, exist_ok=True)
     path = dest / f"{latest}.json"

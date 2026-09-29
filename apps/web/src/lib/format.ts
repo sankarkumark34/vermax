@@ -5,7 +5,7 @@ export const pct = (n: number | null | undefined, d = 1, sign = false) =>
   n == null ? '-' : `${sign && n > 0 ? '+' : ''}${(n * 100).toFixed(d)}%`
 export const pctRaw = (n: number | null | undefined, d = 1, sign = true) =>
   n == null ? '-' : `${sign && n > 0 ? '+' : ''}${n.toFixed(d)}%`
-export const tone = (n: number | null | undefined) => (n == null ? 'text-slate-400' : n > 0 ? 'text-emerald-400' : n < 0 ? 'text-rose-400' : 'text-slate-300')
+export const tone = (n: number | null | undefined) => (n == null ? 'text-mute' : n > 0 ? 'text-pos' : n < 0 ? 'text-neg' : 'text-sub')
 export const dateLabel = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 export const cr = (n: number | null | undefined) => (n == null ? '-' : n >= 1e5 ? `${(n / 1e5).toFixed(1)}L Cr` : `${inr0(n)} Cr`)

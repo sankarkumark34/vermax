@@ -1,30 +1,56 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 @theme {
-  --color-ink: #070b14;
-  --color-panel: #0d1424;
-  --color-panel2: #111a2e;
-  --color-line: #1e2a44;
-  --color-accent: #34d399;
-  --color-gold: #f5b942;
+  --color-bg: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-soft: #f8f9fb;
+  --color-line: #e4e8ef;
+  --color-line-strong: #d3d9e4;
+  --color-ink: #0e1b2e;
+  --color-sub: #4f5f77;
+  --color-mute: #8492a6;
+  --color-brand: #16345c;
+  --color-brand-soft: #e9eef6;
+  --color-pos: #0a7a52;
+  --color-pos-bg: #e6f4ee;
+  --color-neg: #b3261e;
+  --color-neg-bg: #fceceb;
+  --color-amber: #92600a;
+  --color-amber-bg: #fbf1dc;
+  --color-blue: #1c4f94;
+  --color-blue-bg: #e7eefb;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
 
 html, body, #root { min-height: 100%; }
 body {
-  background: radial-gradient(1200px 500px at 15% -10%, rgba(52, 211, 153, 0.07), transparent 60%),
-    radial-gradient(900px 420px at 95% 0%, rgba(245, 185, 66, 0.05), transparent 60%), var(--color-ink);
-  color: #dbe4f3;
+  background: var(--color-bg);
+  color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
 }
 .num { font-variant-numeric: tabular-nums; }
-.card { background: linear-gradient(180deg, var(--color-panel2), var(--color-panel)); border: 1px solid var(--color-line); border-radius: 14px; }
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; border: 1px solid var(--color-line); background: rgba(148, 163, 184, 0.08); color: #b6c2d9; }
-.label { font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #7b8aa8; }
-input, select { background: #0a1120; border: 1px solid var(--color-line); border-radius: 8px; padding: 6px 10px; color: #e6edf9; outline: none; }
-input:focus, select:focus { border-color: #34d39980; }
-::-webkit-scrollbar { height: 8px; width: 8px; }
-::-webkit-scrollbar-thumb { background: #22304f; border-radius: 8px; }
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 32, 60, 0.04), 0 4px 16px -8px rgba(16, 32, 60, 0.06);
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500; background: var(--color-soft); color: var(--color-sub);
+  border: 1px solid var(--color-line);
+}
+.label { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-mute); }
+input, select {
+  background: #fff; border: 1px solid var(--color-line-strong); border-radius: 8px; padding: 6px 10px;
+  color: var(--color-ink); outline: none; font-size: 13.5px;
+}
+input:focus, select:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(22, 52, 92, 0.12); }
 button { cursor: pointer; }
+table th { font-weight: 500; }
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-thumb { background: #cfd6e2; border-radius: 8px; }

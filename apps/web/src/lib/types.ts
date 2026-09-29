@@ -37,7 +37,7 @@ export interface Run {
   asOf: string; tradeDate: string; generatedAt: string
   model: { trainedTo: string; trainedAt: string; rounds: number }
   universe: { liquidStocks: number; priceBand: [number, number]; inBand: number }
-  regime: Regime; config: { tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number }
+  regime: Regime; config: { minRet10?: number; tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number }
   core: Pick[]; theme: Pick[]; rejected: Pick[]; sectors: SectorRow[]; disclaimer: string
 }
 export interface PipelineState { running: boolean; step: string; startedAt: string | null; finishedAt: string | null; error: string | null; lastAsOf: string | null }

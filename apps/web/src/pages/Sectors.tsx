@@ -8,10 +8,10 @@ import { pct, tone } from '../lib/format'
 function Bar({ v, max = 0.15 }: { v: number; max?: number }) {
   const w = Math.min(Math.abs(v) / max, 1) * 50
   return (
-    <div className="relative h-2 w-28 rounded bg-white/5">
-      <div className="absolute left-1/2 top-0 h-2 w-px bg-white/20" />
+    <div className="relative h-2 w-28 rounded bg-line">
+      <div className="absolute left-1/2 top-0 h-2 w-px bg-line-strong" />
       <div
-        className={clsx('absolute top-0 h-2 rounded', v >= 0 ? 'bg-emerald-400/80' : 'bg-rose-400/80')}
+        className={clsx('absolute top-0 h-2 rounded', v >= 0 ? 'bg-pos' : 'bg-neg')}
         style={v >= 0 ? { left: '50%', width: `${w}%` } : { right: '50%', width: `${w}%` }}
       />
     </div>
@@ -38,7 +38,7 @@ export default function Sectors() {
               </div>
               <div className="text-right">
                 <div className="label">Strength rank</div>
-                <div className={clsx('num text-xl font-semibold', (s.rank ?? 0) >= 0.6 ? 'text-emerald-300' : 'text-amber-300')}>{s.rank != null ? `${Math.round(s.rank * 100)}th pct` : '-'}</div>
+                <div className={clsx('num text-xl font-semibold', (s.rank ?? 0) >= 0.6 ? 'text-pos' : 'text-amber')}>{s.rank != null ? `${Math.round(s.rank * 100)}th pct` : '-'}</div>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-4 gap-3 text-sm">
@@ -46,15 +46,15 @@ export default function Sectors() {
                 <div key={l}><div className="label">{l}</div><div className={clsx('num font-semibold', tone(v))}>{pct(v, 1, true)}</div></div>
               ))}
             </div>
-            <p className="mt-3 text-sm text-slate-400">
+            <p className="mt-3 text-sm text-sub">
               {(s.rank ?? 0) >= 0.6
                 ? 'Sector is in its strong zone — the ranking bonus for this theme is ACTIVE.'
                 : 'Sector is not in its strong zone (< 60th percentile) — the ranking bonus is OFF. Backtest: theme picks made when the sector is weak lose money.'}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-slate-500">Model's top names:</span>
+              <span className="text-mute">Model's top names:</span>
               {s.top.map((t) => <Link key={t} to={`/stock/${t}`}><Chip tone="green">{t}</Chip></Link>)}
-              <span className="ml-auto text-slate-500">{s.stocks} liquid stocks · {pct(s.breadth50, 0)} above 50-DMA</span>
+              <span className="ml-auto text-mute">{s.stocks} liquid stocks · {pct(s.breadth50, 0)} above 50-DMA</span>
             </div>
           </div>
         ))}
@@ -63,13 +63,13 @@ export default function Sectors() {
       <Section title="All sectors ranked by 20-day strength" sub="Equal-weight basket returns of liquid stocks; rank = percentile among sectors. Bars show 20-day return vs Nifty.">
         <div className="card overflow-x-auto">
           <table className="num w-full min-w-[820px] text-sm">
-            <thead className="text-left text-slate-500"><tr className="border-b border-line">
+            <thead className="text-left text-mute"><tr className="border-b border-line">
               {['Sector', 'Rank', '5d', '20d', '60d', '20d vs Nifty', '60d vs Nifty', 'Breadth', 'Top names'].map((h) => <th key={h} className="label px-3 py-2.5 font-medium">{h}</th>)}
             </tr></thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.sector} className={clsx('border-b border-line/50', s.isTheme && 'bg-amber-400/[0.05]')}>
-                  <td className="px-3 py-2 font-medium">{s.sector}{s.isTheme && <span className="ml-2 text-amber-300">★</span>}</td>
+                <tr key={s.sector} className={clsx('border-b border-line', s.isTheme && 'bg-amber-bg/60')}>
+                  <td className="px-3 py-2 font-medium">{s.sector}{s.isTheme && <span className="ml-2 text-amber">★</span>}</td>
                   <td className="px-3 py-2">{s.rank != null ? Math.round(s.rank * 100) : '-'}</td>
                   <td className={clsx('px-3 py-2', tone(s.ret5))}>{pct(s.ret5, 1, true)}</td>
                   <td className={clsx('px-3 py-2', tone(s.ret20))}>{pct(s.ret20, 1, true)}</td>
@@ -77,7 +77,7 @@ export default function Sectors() {
                   <td className="px-3 py-2"><div className="flex items-center gap-2"><Bar v={s.rs20} /><span className={tone(s.rs20)}>{pct(s.rs20, 1, true)}</span></div></td>
                   <td className={clsx('px-3 py-2', tone(s.rs60))}>{pct(s.rs60, 1, true)}</td>
                   <td className="px-3 py-2">{pct(s.breadth50, 0)}</td>
-                  <td className="px-3 py-2 text-slate-400">{s.top.map((t, i) => <span key={t}>{i > 0 && ', '}<Link to={`/stock/${t}`} className="hover:text-emerald-300">{t}</Link></span>)}</td>
+                  <td className="px-3 py-2 text-sub">{s.top.map((t, i) => <span key={t}>{i > 0 && ', '}<Link to={`/stock/${t}`} className="hover:text-pos">{t}</Link></span>)}</td>
                 </tr>
               ))}
             </tbody>
