@@ -15,6 +15,7 @@ function useSettings(): Settings {
 }
 
 const RULES = [
+  'Price between ₹200 and ₹650',
   'Uptrend: above 50-EMA and 200-DMA',
   'Up over the last 2 weeks and 20 days',
   'Its sector is in the top 40% by strength',

@@ -48,7 +48,7 @@ export function loadConfig(): AppConfig {
       finalCore: num(e.PICKS_CORE, 5),
       finalTheme: num(e.PICKS_THEME, 5),
       minPrice: num(e.PICKS_MIN_PRICE, 200),
-      maxPrice: num(e.PICKS_MAX_PRICE, 500),
+      maxPrice: num(e.PICKS_MAX_PRICE, 650),
       capital: num(e.CAPITAL, 500000),
       riskPerTrade: num(e.RISK_PER_TRADE, 0.01),
       maxPositionPct: num(e.MAX_POSITION_PCT, 0.2),

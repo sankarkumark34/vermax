@@ -78,7 +78,7 @@ def _plan(r: pd.Series) -> dict:
             "bookAtT1": 0.5}
 
 
-def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.0, sector_cap: int = 2,
+def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.0, sector_cap: int = 2,
           theme_watch: int = 12, lookback_days: int = 900, min_ret10: float = 0.0) -> dict:
     if not MODEL_FILE.exists():
         raise SystemExit("model missing - run `train` first")
@@ -122,11 +122,11 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 500.
     ranked = ranked.sort_values("rank_score", ascending=False)
     picks = [pack(r, i + 1) for i, (_, r) in enumerate(ranked.iterrows())]
 
-    ep = day[(day.d_ema50 > 0) & (day.d_sma200 > 0) & (day.ret20 > 0) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)]
+    ep = day[day.close.between(min_price, max_price) & (day.d_ema50 > 0) & (day.d_sma200 > 0) & (day.ret20 > 0) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)]
     ep = select_picks(ep.assign(day_rank=0), "prob", 15, 0.0, sector_cap, TILT, TILT_MIN_RANK).sort_values("rank_score", ascending=False)
     elite = [pack(r, i + 1) for i, (_, r) in enumerate(ep.iterrows())]
 
-    th = day[day.is_theme == 1].sort_values("rank_score", ascending=False).head(theme_watch)
+    th = day[(day.is_theme == 1) & day.close.between(min_price, max_price)].sort_values("rank_score", ascending=False).head(theme_watch)
     watch = [pack(r, i + 1) for i, (_, r) in enumerate(th.iterrows())]
 
     sec = (ranking_pool[ranking_pool.sector != "Other"].groupby("sector")

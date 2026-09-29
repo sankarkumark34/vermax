@@ -78,7 +78,7 @@ export default function Today() {
         )}
       </Section>
 
-      <Section title="Defence &amp; Engineering" sub="Best-scoring stocks in your priority themes, any price. Higher-priced names need a larger account for a sensible position.">
+      <Section title="Defence &amp; Engineering" sub={`Best-scoring stocks in your priority themes, within the same ₹${run.universe.priceBand[0]}–${run.universe.priceBand[1]} price band.`}>
         <div className="grid gap-4 lg:grid-cols-2">
           {run.theme.map((p, i) => <PickCard key={p.symbol} p={p} index={i + 1} settings={settings} multiplier={m} />)}
         </div>
