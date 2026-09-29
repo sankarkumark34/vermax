@@ -1,0 +1,18 @@
+{
+  "name": "vermax",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vermax - NSE swing-trading decision platform (NestJS API + Python ML + React UI)",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm run start:dev -w api",
+    "dev:web": "npm run dev -w web",
+    "dev": "concurrently -n api,web -c blue,green \"npm run start:dev -w api\" \"npm run dev -w web\"",
+    "build": "npm run build -w api && npm run build -w web",
+    "test": "npm run test -w api",
+    "ml:train": "cd ml && python -m vermax.cli train",
+    "ml:score": "cd ml && python -m vermax.cli score",
+    "ml:research": "cd ml && python -m vermax.run_features && python -m vermax.xsection"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" }
+}
