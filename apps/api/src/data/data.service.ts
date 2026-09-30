@@ -124,6 +124,22 @@ export class DataService {
   async catchUp(to?: string): Promise<IngestSummary> {
     const last = (await this.latestDate()) ?? '2019-01-01';
     const today = to ?? new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+    // NSE publishes bhavcopy first; index closes and delivery (MTO) files can appear later. Re-fetch the recent
+    // sessions whose index or delivery data is still missing so nothing stays half-loaded.
+    const incomplete: { date: string }[] = await this.ds.query(
+      `SELECT b.date AS date FROM (SELECT date, COUNT(deliveryPct) AS dl FROM daily_bars WHERE date >= ? GROUP BY date) b
+       LEFT JOIN (SELECT date, COUNT(*) AS n FROM index_bars WHERE indexName = 'Nifty 50' GROUP BY date) i ON i.date = b.date
+       WHERE COALESCE(i.n, 0) = 0 OR b.dl = 0`,
+      [addDays(last, -7)],
+    );
+    for (const { date } of incomplete) {
+      try {
+        await this.ingestDate(date, true);
+        this.log.log(`re-ingested incomplete session ${date}`);
+      } catch (err) {
+        this.log.warn(`re-ingest ${date} failed: ${(err as Error).message}`);
+      }
+    }
     return this.ingestRange(addDays(last, 1), today);
   }
 

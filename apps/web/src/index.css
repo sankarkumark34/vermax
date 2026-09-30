@@ -30,7 +30,9 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv11", "ss01";
+  font-feature-settings: "kern", "calt", "cv05";
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.006em;
 }
 .num { font-variant-numeric: tabular-nums; }
 .card {
@@ -41,10 +43,12 @@ body {
 }
 .chip {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 500; background: var(--color-soft); color: var(--color-sub);
+  font-size: 11.5px; font-weight: 500; letter-spacing: 0; background: var(--color-soft); color: var(--color-sub);
   border: 1px solid var(--color-line);
 }
-.label { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-mute); }
+.label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-mute); }
+h1, h2 { letter-spacing: -0.02em; }
+.num { letter-spacing: -0.01em; }
 input, select {
   background: #fff; border: 1px solid var(--color-line-strong); border-radius: 8px; padding: 6px 10px;
   color: var(--color-ink); outline: none; font-size: 13.5px;

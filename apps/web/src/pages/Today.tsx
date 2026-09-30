@@ -72,14 +72,14 @@ export default function Today() {
 
       <Section title="Top picks" sub={`₹${run.universe.priceBand[0]}–${run.universe.priceBand[1]} price band · every pick is up over the last 2 weeks, after fundamentals and news checks`}>
         {run.core.length === 0 ? <div className="card p-6 text-sm text-sub">No qualifying picks today. Standing aside is a valid position.</div> : (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {run.core.map((p, i) => <PickCard key={p.symbol} p={p} index={i + 1} settings={settings} multiplier={m} />)}
           </div>
         )}
       </Section>
 
       <Section title="Defence &amp; Engineering" sub={`Best-scoring stocks in your priority themes, within the same ₹${run.universe.priceBand[0]}–${run.universe.priceBand[1]} price band.`}>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {run.theme.map((p, i) => <PickCard key={p.symbol} p={p} index={i + 1} settings={settings} multiplier={m} />)}
         </div>
       </Section>

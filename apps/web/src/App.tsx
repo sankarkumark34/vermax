@@ -84,8 +84,8 @@ export default function App() {
           <div className="mt-auto"><PipelineButton /></div>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 pb-20 pt-7 md:px-8">
-        <div className="mx-auto max-w-[1100px]">
+      <main className="min-w-0 flex-1 px-4 pb-20 pt-7 md:px-8 2xl:px-12">
+        <div className="mx-auto w-full max-w-[1760px]">
           <Routes>
             <Route path="/" element={<Today />} />
             <Route path="/elite" element={<Elite />} />

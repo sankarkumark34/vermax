@@ -4,11 +4,13 @@ import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Too
 import { inr, pct, tone } from '../lib/format'
 import type { Bar as PriceBar } from '../lib/types'
 
+// Session-based short horizons; month horizons are CALENDAR months (same convention as Google Finance).
 const RANGES = [
-  { k: '5D', n: 5 }, { k: '10D', n: 10 }, { k: '20D', n: 20 }, { k: '30D', n: 30 },
-  { k: '2M', n: 42 }, { k: '6M', n: 126 }, { k: '1Y', n: 252 },
+  { k: '5D', n: 5 }, { k: '10D', n: 10 }, { k: '20D', n: 20 }, { k: '1M', m: 1 },
+  { k: '3M', m: 3 }, { k: '6M', m: 6 }, { k: '1Y', m: 12 },
 ] as const
-const RETURNS = [{ k: '1D', n: 1 }, { k: '5D', n: 5 }, { k: '10D', n: 10 }, { k: '20D', n: 20 }, { k: '30D', n: 30 }, { k: '2M', n: 42 }] as const
+const RETURNS = [{ k: '1D', n: 1 }, { k: '5D', n: 5 }, { k: '10D', n: 10 }, { k: '20D', n: 20 }, { k: '1M', m: 1 }, { k: '3M', m: 3 }] as const
+type Span = { n?: number; m?: number }
 
 function ema(values: number[], span: number): number[] {
   const a = 2 / (span + 1)
@@ -21,7 +23,7 @@ function sma(values: number[], n: number): (number | null)[] {
 }
 
 export default function PriceChart({ bars }: { bars: PriceBar[] }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]['k']>('2M')
+  const [range, setRange] = useState<(typeof RANGES)[number]['k']>('1M')
   const [show, setShow] = useState({ ema20: true, ema50: false, sma200: false, volume: true })
 
   const all = useMemo(() => {
@@ -30,8 +32,16 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
     return bars.map((b, i) => ({ date: b.date, close: b.close, volume: b.volume, ema20: e20[i], ema50: e50[i], sma200: s200[i] }))
   }, [bars])
 
-  const n = RANGES.find((r) => r.k === range)!.n
-  const data = all.slice(-(n + 1))
+  // index of the reference bar: N sessions back, or the first close on/after the same date M calendar months ago
+  const refIndex = (span: Span) => {
+    if (span.n != null) return Math.max(0, all.length - 1 - span.n)
+    const d = new Date(`${all.at(-1)!.date}T00:00:00Z`)
+    d.setUTCMonth(d.getUTCMonth() - (span.m ?? 1))
+    const cut = d.toISOString().slice(0, 10)
+    const idx = all.findIndex((b) => b.date >= cut)
+    return idx < 0 ? all.length - 1 : idx
+  }
+  const data = all.slice(refIndex(RANGES.find((r) => r.k === range)!))
   const first = data[0]?.close ?? 0
   const last = data.at(-1)?.close ?? 0
   const chg = first ? last / first - 1 : 0
@@ -42,12 +52,13 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
 
   return (
     <div className="card p-5">
-      <div className="label mb-2">Returns to the NSE close of {all.at(-1)?.date} (trading sessions)</div>
+      <div className="label mb-2">Returns to the NSE close of {all.at(-1)?.date} · 5D/10D/20D = sessions, 1M+ = calendar months</div>
       <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-        {RETURNS.map(({ k, n: len }) => {
-          const ref = all.at(-(len + 1))?.close
+        {RETURNS.map((h) => {
+          const k = h.k
+          const ref = all[refIndex(h)]?.close
           const r = ref ? (all.at(-1)!.close / ref - 1) : null
-          const target = RANGES.find((x) => x.n >= len)?.k
+          const target = RANGES.find((x) => x.k === k)?.k ?? '5D'
           return (
             <button key={k} onClick={() => target && setRange(target)} className="rounded-lg border border-line bg-soft px-3 py-2 text-left transition hover:border-line-strong">
               <div className="label">{k}</div>

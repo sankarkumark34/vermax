@@ -51,6 +51,17 @@ def train(rounds: int = 250, embargo_days: int = 15) -> dict:
     return meta
 
 
+def _clean(o):
+    """NaN/inf are not valid JSON: turn them into null so the API never chokes on a partial data day."""
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    if isinstance(o, float) and not np.isfinite(o):
+        return None
+    return o
+
+
 def _regime(day: pd.DataFrame) -> dict:
     r = day.iloc[0]
     nifty_d200, nifty_d50 = r["nifty_d200"], r["nifty_d50"]
@@ -156,7 +167,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.
     dest = config.OUT_DIR.parent / "picks"
     dest.mkdir(parents=True, exist_ok=True)
     path = dest / f"{latest}.json"
-    path.write_text(json.dumps(out, indent=1))
+    path.write_text(json.dumps(_clean(out), indent=1, allow_nan=False))
     out["_path"] = str(path)
     return out
 

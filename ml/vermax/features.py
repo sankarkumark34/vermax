@@ -113,6 +113,8 @@ def build_features(start: str = "2019-01-01", end: str | None = None) -> pd.Data
     vc = vix["close"].reindex(nc.index).ffill()
     m["vix"] = vc; m["vix_chg5"] = vc / vc.shift(5) - 1
     m["vix_pct"] = vc.rolling(252, min_periods=60).rank(pct=True)
+    # index files can lag the equity bhavcopy by hours: carry the last known market context forward
+    m = m.reindex(sorted(set(m.index) | set(df["date"].unique()))).ffill()
     df = df.merge(m, left_on="date", right_index=True, how="left")
     df["rs20"] = df.ret20 - df.nifty_ret20
     df["rs60"] = df.ret60 - df.nifty_ret60

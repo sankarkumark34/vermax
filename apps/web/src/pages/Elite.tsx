@@ -59,7 +59,7 @@ export default function Elite() {
             <p className="mt-1 text-sm text-sub">Standing aside is a valid position. Check again after the next market close, or press Refresh picks if this run predates the Elite tab.</p>
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {elite.map((p, i) => <PickCard key={p.symbol} p={p} index={i + 1} settings={settings} multiplier={run.regime.sizeMultiplier} />)}
           </div>
         )}

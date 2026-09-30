@@ -8,6 +8,8 @@ from . import config
 from .data import _con, load_bars, load_stocks
 
 HORIZONS = {"d5": 5, "d10": 10, "w3": 15, "m1": 21, "q1": 63, "h1": 126, "y1": 252}
+# Calendar-month horizons (Google convention): first close on/after the same date N months ago.
+CAL_MONTHS = {"m1": 1, "q1": 3, "h1": 6, "y1": 12}
 
 
 def screen(min_turnover_cr: float = 0.5, min_price: float = 20.0) -> dict:
@@ -19,9 +21,17 @@ def screen(min_turnover_cr: float = 0.5, min_price: float = 20.0) -> dict:
     df["bars"] = g.cumcount() + 1
     df["turnover20"] = g["turnover"].transform(lambda s: s.rolling(20, min_periods=10).mean()) / 1e7
     last = df[df.date == pd.Timestamp(latest)].copy()
+    last_dt = pd.Timestamp(latest)
     for k, n in HORIZONS.items():
-        ref = g["close"].shift(n)
-        last[k] = (df["close"] / ref - 1).loc[last.index]
+        if k in CAL_MONTHS:
+            cut = last_dt - pd.DateOffset(months=CAL_MONTHS[k])
+            # Google convention: first trading day on/after the same calendar date N months ago
+            win = df[(df.date >= cut) & (df.date <= cut + pd.Timedelta(days=10))]
+            past = win.groupby("symbol")["close"].first()
+            last[k] = last.close / last.symbol.map(past) - 1
+        else:
+            ref = g["close"].shift(n)
+            last[k] = (df["close"] / ref - 1).loc[last.index]
     last["chg1"] = (df["close"] / g["close"].shift(1) - 1).loc[last.index]
     last = last[(last.close >= min_price) & (last.turnover20 >= min_turnover_cr)]
     stocks = load_stocks().set_index("symbol")

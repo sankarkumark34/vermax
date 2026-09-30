@@ -123,7 +123,27 @@ export class ApiController {
     const rank = new Map((latestRun?.ranking ?? []).map((r, i) => [r.symbol, { modelRank: i + 1, modelScore: r.score }]));
     const veto = new Map((latestRun?.rejected ?? []).map((r) => [r.symbol, r.rejectReasons.join('; ')]));
     const of = latestRun?.ranking?.length ?? 0;
-    return { ...data, rankAsOf: latestRun?.asOf ?? null, rankOf: of, rows: data.rows.map((r) => ({ ...r, ...(rank.get(r.symbol as string) ?? { modelRank: null, modelScore: null }), vetoReason: veto.get(r.symbol as string) ?? null })) };
+    const tag = new Map<string, 'elite' | 'core' | 'theme'>();
+    for (const [list, name] of [[latestRun?.theme, 'theme'], [latestRun?.core, 'core'], [latestRun?.elite, 'elite']] as const)
+      for (const p of list ?? []) tag.set(p.symbol, name);
+    const band = [this.cfg.picks.minPrice, this.cfg.picks.maxPrice];
+    // Tomorrow rating: grade from the model's rank percentile, gated by the live pick rules.
+    const rate = (r: Record<string, unknown>) => {
+      const sym = r.symbol as string;
+      const mr = (rank.get(sym)?.modelRank ?? null) as number | null;
+      const pctl = mr && of ? 1 - (mr - 1) / of : 0;
+      const reasons: string[] = [];
+      if (mr == null) reasons.push('not in the model universe (turnover < ₹5 Cr/day)');
+      if ((r.close as number) < band[0] || (r.close as number) > band[1]) reasons.push(`price outside ₹${band[0]}–${band[1]}`);
+      if (!((r.d10 as number | null) != null && (r.d10 as number) > 0)) reasons.push('not up over the last 10 sessions');
+      if (veto.get(sym)) reasons.push(`vetoed: ${veto.get(sym)}`);
+      const eligible = reasons.length === 0;
+      const grade = mr == null ? '-' : pctl >= 0.95 ? 'A' : pctl >= 0.85 ? 'B' : pctl >= 0.6 ? 'C' : 'D';
+      const t = tag.get(sym) ?? null;
+      const score = (t === 'elite' ? 300 : t === 'core' ? 200 : t === 'theme' ? 150 : 0) + (eligible ? 100 : 0) + Math.round(pctl * 100);
+      return { grade, eligible, reasons, tomorrow: t, score };
+    };
+    return { ...data, rankAsOf: latestRun?.asOf ?? null, rankOf: of, rows: data.rows.map((r) => ({ ...r, ...(rank.get(r.symbol as string) ?? { modelRank: null, modelScore: null }), vetoReason: veto.get(r.symbol as string) ?? null, rating: rate(r) })) };
   }
 
   @Get('quote/:symbol')
