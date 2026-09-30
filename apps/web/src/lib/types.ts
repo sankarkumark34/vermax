@@ -88,3 +88,12 @@ export interface CircuitBrief {
   medianFurtherFallPct: number | null; lastEventDate: string | null; lockedNow: boolean; recentDays: number | null
 }
 export interface CircuitSummary extends CircuitBrief { list: CircuitEvent[] }
+
+export interface ScreenerRow {
+  symbol: string; name: string | null; sector: string; close: number; chg1: number | null; turnoverCr: number; bars: number
+  deliveryPct: number | null; d5: number | null; d10: number | null; w3: number | null; m1: number | null; q1: number | null; h1: number | null; y1: number | null
+  modelRank: number | null; modelScore: number | null; vetoReason?: string | null
+}
+export interface ScreenerResp { asOf: string; generatedAt: string; count: number; rankAsOf: string | null; rankOf: number; rows: ScreenerRow[] }
+
+export interface LiveQuote { symbol: string; price: number; prevClose: number | null; changePct: number | null; dayHigh: number | null; dayLow: number | null; time: string | null; source: 'yahoo' }

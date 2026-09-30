@@ -23,6 +23,15 @@ def main(argv: list[str]) -> None:
     elif cmd == "track":
         from .production import track
         out = track(args["items"])
+    elif cmd == "screener":
+        from .screener import screen
+        from . import config
+        out = screen(**args)
+        dest = config.OUT_DIR.parent / "screener"
+        dest.mkdir(parents=True, exist_ok=True)
+        path = dest / f"{out['asOf']}.json"
+        path.write_text(json.dumps(out))
+        out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
     elif cmd == "fundamentals":
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))

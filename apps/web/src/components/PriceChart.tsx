@@ -42,6 +42,7 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
 
   return (
     <div className="card p-5">
+      <div className="label mb-2">Returns to the NSE close of {all.at(-1)?.date} (trading sessions)</div>
       <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
         {RETURNS.map(({ k, n: len }) => {
           const ref = all.at(-(len + 1))?.close

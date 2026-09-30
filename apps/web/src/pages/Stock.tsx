@@ -4,12 +4,13 @@ import PriceChart from '../components/PriceChart'
 import { useParams } from 'react-router'
 import { Chip, ErrorBox, Loading, Section, Stat } from '../components/ui'
 import { api } from '../lib/api'
-import { inr, pct, pctRaw, tone } from '../lib/format'
+import { dateLabel, inr, pct, pctRaw, tone } from '../lib/format'
 
 export default function Stock() {
   const { symbol = '' } = useParams()
   const [deep, setDeep] = useState(false)
   const q = useQuery({ queryKey: ['stock', symbol, deep], queryFn: () => api.stock(symbol, deep), placeholderData: (p) => p })
+  const live = useQuery({ queryKey: ['quote', symbol], queryFn: () => api.quote(symbol), refetchInterval: 60_000 })
   if (q.isLoading) return <Loading what={symbol} />
   if (q.error) return <ErrorBox error={q.error} />
   const d = q.data!
@@ -17,7 +18,8 @@ export default function Stock() {
   const first20 = d.bars.at(-21) ?? d.bars[0]
   const ret20 = last.close / first20.close - 1
   const hi = Math.max(...d.bars.map((b) => b.high))
-    const f = d.fundamentals
+  const lq = live.data?.quote
+  const f = d.fundamentals
   const n = d.sentiment
 
   return (
@@ -27,9 +29,19 @@ export default function Stock() {
           <h1 className="text-2xl font-semibold tracking-tight">{symbol}</h1>
           {d.info?.name && <span className="text-sub">{d.info.name}</span>}
           {d.info?.sector && <Chip>{d.info.sector}</Chip>}
+          {lq && (
+            <div className="ml-auto text-right" title="Intraday price from Yahoo Finance (may be delayed ~15 min). Display only — all analysis uses the official NSE closing price.">
+              <div className="label">Live · delayed</div>
+              <div className="num text-[19px] font-semibold leading-tight">₹{inr(lq.price)} <span className={`text-[14px] ${tone(lq.changePct)}`}>{pctRaw(lq.changePct, 2)}</span></div>
+              {lq.time && <div className="text-xs text-mute">{new Date(lq.time).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
+            </div>
+          )}
         </div>
+        <p className="mt-2 text-xs text-mute">
+          All numbers below are calculated on the official NSE closing price of <b className="text-sub">{dateLabel(last.date)}</b> (bhavcopy). Today's move is only included after NSE publishes the day's closing data (~6:30 PM IST).
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-5 sm:grid-cols-4">
-          <Stat label="Last close" value={`₹${inr(last.close)}`} sub={last.date} />
+          <Stat label="NSE close" value={`₹${inr(last.close)}`} sub={dateLabel(last.date)} />
           <Stat label="20-day" value={pct(ret20, 1, true)} tone={tone(ret20)} />
           <Stat label="From 1Y high" value={pctRaw((last.close / hi - 1) * 100)} tone={tone(last.close / hi - 1)} />
           <Stat label="Model rank" value={d.model ? `#${d.model.modelRank}` : 'n/a'} sub={d.model ? `of ${d.model.of} liquid · score ${(d.model.score * 100).toFixed(1)}` : 'not in liquid universe'} />

@@ -18,3 +18,4 @@ __pycache__/
 Thumbs.db
 data/picks/
 data/*.log
+data/screener/

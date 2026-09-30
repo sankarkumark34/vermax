@@ -11,22 +11,22 @@
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Random 5 liquid stocks/day (no model) | 6848 | 42.5% | -0.26% | 0.91 | -8.8% | -55.5% | 2.7% | 13.1% |
 | Model top-5, all liquid, no theme tilt | 6834 | 46.9% | +0.30% | 1.12 | 13.9% | -29.1% | 4.4% | 11.7% |
-| Model top-5 + Defence/Engineering tilt (published) | 6840 | 47.4% | +0.43% | 1.17 | 20.2% | -29.5% | 6.7% | 14.1% |
-| Model top-5 + tilt, price Rs200-500 only | 6855 | 48.1% | +0.37% | 1.14 | 18.8% | -30.0% | 6.4% | 13.1% |
+| Model top-5 + tilt, no live filters | 6840 | 47.4% | +0.43% | 1.17 | 20.2% | -29.5% | 6.7% | 14.1% |
+| Live rules: Rs200-650, 2-week positive, tilt (published) | 6813 | 47.2% | +0.32% | 1.12 | 22.5% | -38.8% | 6.4% | 12.8% |
 | Theme-only (Defence+Engineering) top-5 | 5261 | 47.5% | +0.44% | 1.16 | 26.0% | -35.5% | 8.4% | 15.1% |
 | Defence-only top-3 | 2523 | 46.3% | +0.33% | 1.13 | 17.9% | -35.4% | 8.4% | 12.1% |
 | Engineering-only top-3 | 2738 | 48.6% | +0.54% | 1.2 | 19.2% | -32.2% | 4.0% | 11.4% |
 
-## Calendar-year portfolio return (published strategy)
+## Calendar-year portfolio return (published strategy, live rules)
 
 | Year | Return |
 | --- | ---: |
-| 2021 | +43.9% |
-| 2022 | +12.9% |
-| 2023 | +50.4% |
-| 2024 | +19.7% |
-| 2025 | -1.0% |
-| 2026 | -1.3% |
+| 2021 | +32.4% |
+| 2022 | -16.3% |
+| 2023 | +68.5% |
+| 2024 | +31.8% |
+| 2025 | +16.6% |
+| 2026 | +11.2% |
 
 ## Ranking quality: rank-IC vs 10-day forward return (all liquid stocks, out-of-sample)
 
@@ -83,8 +83,8 @@ Theme picks split by the sector's own point-in-time strength (Defence/Engineerin
 
 | | Trades | T1 hit | Stopped | Expectancy | >=1 of 3 hits T1 | All 3 lose |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Elite rule | 859 | 34.0% | 48.3% | +0.34% | 63% of weeks | 24% of weeks |
-| Plain model top-3 weekly | 860 | 31.9% | 42.6% | +0.32% | 61% of weeks | 22% of weeks |
+| Elite rule | 864 | 33.1% | 45.4% | +0.40% | 64% of weeks | 23% of weeks |
+| Plain model top-3 weekly | 867 | 35.1% | 42.7% | +0.80% | 65% of weeks | 21% of weeks |
 
 Adding more confirmation filters (volume, RSI band, delivery, candle position) did NOT raise the hit rate - it stayed near 30-36%. No rule makes a pick certain.
 

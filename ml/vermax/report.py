@@ -48,9 +48,9 @@ def main() -> None:
     rnd = shuf[shuf.groupby("date").cumcount() < 5].drop(columns="_r")
     variants["Random 5 liquid stocks/day (no model)"] = rnd.assign(day_rank=rnd.groupby("date").cumcount())
     variants["Model top-5, all liquid, no theme tilt"] = select_picks(o, "p_all", 5)
-    variants["Model top-5 + Defence/Engineering tilt (published)"] = select_picks(o, "p_all", 5, tilt=TILT)
-    inband = o[o.close.between(200, 500)]
-    variants["Model top-5 + tilt, price Rs200-500 only"] = select_picks(inband, "p_all", 5, tilt=TILT)
+    variants["Model top-5 + tilt, no live filters"] = select_picks(o, "p_all", 5, tilt=TILT)
+    live = o[o.close.between(200, 650) & (o.ret10 > 0)]
+    variants["Live rules: Rs200-650, 2-week positive, tilt (published)"] = select_picks(live, "p_all", 5, tilt=TILT)
     variants["Theme-only (Defence+Engineering) top-5"] = select_picks(o[o.is_theme == 1], "p_all", 5)
     variants["Defence-only top-3"] = select_picks(o[o.is_defence == 1], "p_all", 3)
     variants["Engineering-only top-3"] = select_picks(o[o.is_engineering == 1], "p_all", 3)
@@ -79,15 +79,15 @@ def main() -> None:
         summary["variants"].append(rec)
         rows.append(rec)
         summary["byYear"][name] = {str(y): stats(g) for y, g in t.groupby(t.date.dt.year)}
-        if name.startswith("Model top-5 + Defence"):
+        if name.startswith("Live rules"):
             main_t = t
     md += ["## Headline (net of costs)", "",
            "| Strategy | Trades | Positive % | Expectancy/trade | Profit factor | CAGR | Max DD | Weeks >= +5% | Weeks <= -3% |",
            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for r in rows:
         md.append(f"| {r['name']} | {r['n']} | {r['pos%']}% | {r['exp%']:+.2f}% | {r['PF']} | {r['CAGR%']}% | {r['maxDD%']}% | {r['wk>=5%']}% | {r['wk<=-3%']}% |")
-    md += ["", "## Calendar-year portfolio return (published strategy)", "", "| Year | Return |", "| --- | ---: |"]
-    pub = next(r for r in rows if r["name"].startswith("Model top-5 + Defence"))
+    md += ["", "## Calendar-year portfolio return (published strategy, live rules)", "", "| Year | Return |", "| --- | ---: |"]
+    pub = next(r for r in rows if r["name"].startswith("Live rules"))
     for y, v in pub["yearly"].items():
         md.append(f"| {y} | {v:+.1f}% |")
 
@@ -147,7 +147,7 @@ def main() -> None:
     w["wk"] = w.date.dt.to_period("W-FRI")
     w = w[w.date == w.groupby("wk").date.transform("max")].copy()
     w["rs"] = w.p_all + TILT * (w.is_theme == 1)
-    ok = (w.ret10 > 0) & (w.ret20 > 0) & (w.d_ema50 > 0) & (w.d_sma200 > 0) & (w.sec_rank >= 0.6)
+    ok = w.close.between(200, 650) & (w.ret10 > 0) & (w.ret20 > 0) & (w.d_ema50 > 0) & (w.d_sma200 > 0) & (w.sec_rank >= 0.6)
 
     def elite_run(d: pd.DataFrame) -> dict:
         d = d.sort_values(["date", "rs"], ascending=[True, False])
@@ -164,7 +164,7 @@ def main() -> None:
                 "byYear": {str(y): {"t1HitPct": round(float(g.t1_hit.mean()) * 100, 1), "expectancyPct": round(float(g.net_ret.mean()) * 100, 2)} for y, g in t.groupby(t.date.dt.year)}}
 
     summary["elite"] = {"rule": "uptrend (>50-EMA, >200-DMA, 10d & 20d positive) + sector strength >= 60th pct, ranked by model score (+theme tilt), weekly top 3",
-                        "elite": elite_run(w[ok]), "baselineTop3Weekly": elite_run(w.assign(rs=w.p_all))}
+                        "elite": elite_run(w[ok]), "baselineTop3Weekly": elite_run(w[w.close.between(200, 650) & (w.ret10 > 0)].assign(rs=w.p_all))}
     e, b = summary["elite"]["elite"], summary["elite"]["baselineTop3Weekly"]
     md += ["", "## Elite weekly top-3 (backtest of the exact rule, before live fundamentals/news overlays)", "",
            "| | Trades | T1 hit | Stopped | Expectancy | >=1 of 3 hits T1 | All 3 lose |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",

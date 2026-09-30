@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DataSource } from 'typeorm';
+import { QuoteService } from '../quote/quote.service.js';
 import { CircuitService } from '../circuit/circuit.service.js';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
 import { loadConfig } from '../config/app.config.js';
@@ -25,6 +26,7 @@ export class ApiController {
     private readonly sentiment: SentimentService,
     private readonly bridge: PythonBridgeService,
     private readonly circuits: CircuitService,
+    private readonly quotes: QuoteService,
     @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
@@ -106,6 +108,29 @@ export class ApiController {
     const p = path.join(this.cfg.researchDir, 'summary.json');
     if (!fs.existsSync(p)) throw new NotFoundException('No backtest summary yet - run `python -m vermax.report` in ml/');
     return JSON.parse(fs.readFileSync(p, 'utf8'));
+  }
+
+  // ---- screener (price buckets x multi-horizon returns; computed by Python, cached per session date) ----
+  @Get('screener')
+  async screener() {
+    const latest = await this.data.latestDate();
+    const file = path.join(this.cfg.repoRoot, 'data', 'screener', `${latest}.json`);
+    if (!fs.existsSync(file)) await this.bridge.run('screener', {}, 5 * 60_000);
+    if (!fs.existsSync(file)) throw new NotFoundException('Screener data unavailable');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8')) as { rows: Record<string, unknown>[] };
+    // Buy rank = position in the model's latest daily ranking of liquid stocks (1 = best).
+    const latestRun = await this.picks.latest();
+    const rank = new Map((latestRun?.ranking ?? []).map((r, i) => [r.symbol, { modelRank: i + 1, modelScore: r.score }]));
+    const veto = new Map((latestRun?.rejected ?? []).map((r) => [r.symbol, r.rejectReasons.join('; ')]));
+    const of = latestRun?.ranking?.length ?? 0;
+    return { ...data, rankAsOf: latestRun?.asOf ?? null, rankOf: of, rows: data.rows.map((r) => ({ ...r, ...(rank.get(r.symbol as string) ?? { modelRank: null, modelScore: null }), vetoReason: veto.get(r.symbol as string) ?? null })) };
+  }
+
+  @Get('quote/:symbol')
+  async quote(@Param('symbol') raw: string) {
+    const symbol = raw.toUpperCase();
+    if (!SYMBOL.test(symbol)) throw new BadRequestException('bad symbol');
+    return { quote: await this.quotes.get(symbol) };
   }
 
   // ---- single stock --------------------------------------------------------------------------
