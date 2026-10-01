@@ -5,8 +5,8 @@ import { Chip, ErrorBox, Loading, Section } from '../components/ui'
 import { api } from '../lib/api'
 import { dateLabel, inr0, pct, tone } from '../lib/format'
 
-const KEY = 'vermax.settings'
-const defaults: Settings = { capital: 500000, riskPct: 0.01 }
+const KEY = 'vermax.settings.v2' // v2: default risk lowered to 0.5%
+const defaults: Settings = { capital: 500000, riskPct: 0.005 }
 
 function useSettings() {
   const [s, setS] = useState<Settings>(() => {

@@ -8,6 +8,47 @@ import { tone } from '../lib/format'
 const axis = { stroke: '#8492a6', fontSize: 11 }
 const tip = { contentStyle: { background: '#ffffff', border: '1px solid #e4e8ef', borderRadius: 8, fontSize: 12 }, cursor: { fill: 'rgba(22,52,92,0.05)' } }
 
+function ModelHealth() {
+  const q = useQuery({ queryKey: ['health'], queryFn: api.health, staleTime: 30 * 60_000 })
+  if (q.isLoading) return <div className="card p-5 text-sm text-mute">Checking model health…</div>
+  if (q.error || !q.data) return null
+  const h = q.data
+  const tone2 = h.status === 'OK' ? 'bg-pos-bg text-pos' : h.status === 'WATCH' ? 'bg-amber-bg text-amber' : 'bg-neg-bg text-neg'
+  const months = h.oosMonthlyIC.map((m) => ({ y: m.month.slice(2), v: m.ic }))
+  return (
+    <Section title="Model health" sub={`Model trained to ${h.model.trainedTo ?? '-'}. Live check compares each published ranking with what happened over the next 10 sessions.`}>
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr_1.2fr]">
+        <div className="card p-5">
+          <span className={clsx('rounded-md px-2.5 py-1 text-sm font-semibold', tone2)}>{h.status}</span>
+          <ul className="mt-3 space-y-1 text-[13px] text-sub">
+            {h.reasons.length ? h.reasons.map((r) => <li key={r}>• {r}</li>) : <li>No warning signs: ranking skill positive recently and inputs within their historical range.</li>}
+          </ul>
+          <div className="mt-4 text-[13px] text-sub">Live runs scored: <b className="text-ink">{h.liveRunsScored}</b>{h.liveICMean != null && <> · live IC <b className={tone(h.liveICMean)}>{h.liveICMean.toFixed(3)}</b></>}</div>
+          {h.liveRunsScored < 20 && <p className="mt-1 text-xs text-mute">Needs about 20 published runs that are 10+ sessions old before the live number means much.</p>}
+        </div>
+        <div className="card h-56 p-3">
+          <div className="label px-2 pt-1">Out-of-sample rank-IC by month</div>
+          <ResponsiveContainer height="88%"><BarChart data={months}><CartesianGrid stroke="#e4e8ef" vertical={false} /><XAxis dataKey="y" {...axis} /><YAxis {...axis} /><Tooltip {...tip} />
+            <Bar dataKey="v" radius={[3, 3, 0, 0]}>{months.map((d) => <Cell key={d.y} fill={d.v >= 0 ? '#1c4f94' : '#b3261e'} />)}</Bar></BarChart></ResponsiveContainer>
+        </div>
+        <div className="card p-4">
+          <div className="label mb-2">Input drift (top features)</div>
+          <ul className="space-y-1 text-[12.5px]">
+            {h.drift.map((d) => (
+              <li key={d.feature} className="flex justify-between gap-2">
+                <span className="text-sub">{d.feature}</span>
+                <span className={clsx('num', d.level === 'high' ? 'text-neg' : d.level === 'moderate' ? 'text-amber' : 'text-pos')}>
+                  {d.kind === 'context' ? `${Math.round((d.percentile ?? 0) * 100)}th pct` : `PSI ${d.psi?.toFixed(2)}`} · {d.level}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 export default function Performance() {
   const q = useQuery({ queryKey: ['perf'], queryFn: api.performance })
   if (q.isLoading) return <Loading what="backtest" />
@@ -27,6 +68,8 @@ export default function Performance() {
           {' '}{pub['wk>=5%']}% of weeks and lost ≥ 3% in {pub['wk<=-3%']}% of weeks. Use it for small, controlled-risk trades and let the live journal confirm it.
         </p>
       </div>
+
+      <ModelHealth />
 
       <Section title="Strategy comparison (net of costs)" sub="All rows use the same published trade plan; only the stock selection differs.">
         <div className="card overflow-x-auto">

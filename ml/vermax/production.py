@@ -13,7 +13,7 @@ from .labels import manage_trade
 from .model import FEATURES
 from .picking import select_picks
 from .setups import add_setups
-from .themes import is_priority_theme
+from .themes import is_priority_theme, subtheme
 from .xsection import EXTRA, add_extra, prep
 
 MODEL_FILE = config.MODEL_DIR / "xs_model.txt"
@@ -125,7 +125,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.
                 "delivPct": round(float(r["deliv_pct"]), 1) if pd.notna(r["deliv_pct"]) else None,
                 "rs60": round(float(r["rs60"]), 4) if pd.notna(r["rs60"]) else None,
                 "sectorRank": round(float(r["sec_rank"]), 2) if pd.notna(r["sec_rank"]) else None,
-                "tags": setup_tags(r), "reasons": top_reasons(meta["features"], contrib[int(r["ci"])], r),
+                "tags": ([subtheme(r["symbol"])] if subtheme(r["symbol"]) else []) + setup_tags(r), "reasons": top_reasons(meta["features"], contrib[int(r["ci"])], r),
                 "plan": _plan(r)}
 
     band = day[day.close.between(min_price, max_price)]

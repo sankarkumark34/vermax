@@ -23,6 +23,6 @@ MAX_GAP_CHASE = 0.025             # skip if next open > signal close by this muc
 ROUND_TRIP_COST = 0.0040          # brokerage+STT+charges+slippage, round trip
 
 # --- portfolio sim -------------------------------------------------------------------
-RISK_PER_TRADE = 0.01
+RISK_PER_TRADE = 0.005             # 0.5% of capital at risk per trade (drawdown roughly halves vs 1%)
 MAX_POSITION = 0.20
 MAX_OPEN = 5

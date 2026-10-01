@@ -6,10 +6,10 @@ import { Chip, ErrorBox, Loading, Section, Stat } from '../components/ui'
 import { api } from '../lib/api'
 import { dateLabel, tone } from '../lib/format'
 
-const KEY = 'vermax.settings'
+const KEY = 'vermax.settings.v2' // v2: default risk lowered to 0.5%
 
 function useSettings(): Settings {
-  const [s, setS] = useState<Settings>({ capital: 500000, riskPct: 0.01 })
+  const [s, setS] = useState<Settings>({ capital: 500000, riskPct: 0.005 })
   useEffect(() => { try { setS((p) => ({ ...p, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') })) } catch { /* ignore */ } }, [])
   return s
 }

@@ -5,6 +5,7 @@ import { DataSource, Repository } from 'typeorm';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
 import { loadConfig } from '../config/app.config.js';
 import { CircuitService } from '../circuit/circuit.service.js';
+import { NotifyService } from '../notify/notify.service.js';
 import { DataService } from '../data/data.service.js';
 import { PickEntity } from '../database/entities/pick.entity.js';
 import { PickRunEntity } from '../database/entities/pick-run.entity.js';
@@ -23,6 +24,16 @@ export interface PipelineState {
   lastAsOf: string | null;
 }
 
+function summarize(run: PublishedRun): string {
+  const line = (p: PublishedRun['core'][number]) => `${p.symbol} ₹${p.close} · SL ${p.plan.stop} · T1 ${p.plan.t1} · T2 ${p.plan.t2}`;
+  const out = [`Picks for ${run.tradeDate} (close ${run.asOf}) · market ${run.regime.label}`];
+  if (run.elite.length) out.push('', '★ Elite', ...run.elite.map(line));
+  if (run.core.length) out.push('', 'Top picks', ...run.core.map(line));
+  if (run.theme.length) out.push('', 'Defence & Engineering', run.theme.map((p) => p.symbol).join(', '));
+  out.push('', 'Buy only at open ≤ the listed limit; exit by day 10.');
+  return out.join('\n');
+}
+
 const DISCLAIMER =
   'Decision-support output from a statistical model, not investment advice. Backtested edge is small (see /performance); ' +
   'losses are normal. Fundamentals and news are overlays and were not part of the backtest.';
@@ -39,6 +50,7 @@ export class PicksService {
     private readonly sentiment: SentimentService,
     private readonly journal: JournalService,
     private readonly circuits: CircuitService,
+    private readonly notify: NotifyService,
     @InjectDataSource() private readonly ds: DataSource,
     @InjectRepository(PickRunEntity) private readonly runs: Repository<PickRunEntity>,
     @InjectRepository(PickEntity) private readonly picks: Repository<PickEntity>,
@@ -54,10 +66,14 @@ export class PicksService {
   start(opts: { ingest?: boolean } = {}): boolean {
     if (this.state.running) return false;
     Object.assign(this.state, { running: true, startedAt: new Date().toISOString(), finishedAt: null, error: null });
+    const step0 = () => this.state.step;
     void this.runPipeline(opts.ingest ?? true)
+      .then((run) => this.notify.send('info', summarize(run)))
       .catch((err: Error) => {
         this.state.error = err.message;
         this.log.error(`pipeline failed: ${err.message}`);
+        void this.notify.send('error', `Daily pipeline FAILED at step "${step0()}":
+${err.message.slice(0, 400)}`);
       })
       .finally(() => {
         this.state.running = false;

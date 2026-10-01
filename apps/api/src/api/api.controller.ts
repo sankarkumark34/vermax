@@ -3,6 +3,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DataSource } from 'typeorm';
+import { NotifyService } from '../notify/notify.service.js';
+import { SchedulerService } from '../scheduler/scheduler.service.js';
 import { QuoteService } from '../quote/quote.service.js';
 import { CircuitService } from '../circuit/circuit.service.js';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
@@ -27,12 +29,48 @@ export class ApiController {
     private readonly bridge: PythonBridgeService,
     private readonly circuits: CircuitService,
     private readonly quotes: QuoteService,
+    private readonly notify: NotifyService,
+    private readonly scheduler: SchedulerService,
     @InjectDataSource() private readonly ds: DataSource,
   ) {}
 
   @Get('health')
   health() {
     return { ok: true, time: new Date().toISOString() };
+  }
+
+  /** Operational status: data freshness, last pipeline, scheduler, alerts. */
+  @Get('system')
+  async system() {
+    const latest = await this.data.latestDate();
+    const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+    const lastRun = await this.picks.latest();
+    return {
+      dataLatest: latest,
+      todayIst: today,
+      publishedAsOf: lastRun?.asOf ?? null,
+      pipeline: this.picks.state,
+      jobs: this.scheduler.jobs(),
+      lastRetrain: this.scheduler.lastRetrain,
+      alerts: { telegram: this.notify.enabled, recent: this.notify.events.slice(0, 10) },
+    };
+  }
+
+  private healthCache: { at: number; data: unknown } | null = null;
+
+  /** Model health: live rank-IC of published rankings, recent out-of-sample IC by month, feature drift. */
+  @Get('model/health')
+  async modelHealth(@Query('refresh') refresh?: string) {
+    if (!refresh && this.healthCache && Date.now() - this.healthCache.at < 6 * 3600_000) return this.healthCache.data;
+    const data = await this.bridge.run('health', {}, 10 * 60_000);
+    this.healthCache = { at: Date.now(), data };
+    return data;
+  }
+
+  @Post('system/test-alert')
+  async testAlert() {
+    const delivered = await this.notify.send('info', 'Test alert from Vermax. If you can read this, Telegram alerts work.');
+    return { delivered, telegram: this.notify.enabled };
   }
 
   // ---- picks -------------------------------------------------------------------

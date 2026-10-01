@@ -19,3 +19,4 @@ Thumbs.db
 data/picks/
 data/*.log
 data/screener/
+scripts/.env.cmd

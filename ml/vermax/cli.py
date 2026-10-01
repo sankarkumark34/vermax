@@ -32,11 +32,26 @@ def main(argv: list[str]) -> None:
         path = dest / f"{out['asOf']}.json"
         path.write_text(json.dumps(out))
         out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "ipos":
+        from .screener import ipos
+        from . import config
+        out = ipos(**args)
+        dest = config.OUT_DIR.parent / "screener"
+        dest.mkdir(parents=True, exist_ok=True)
+        path = dest / f"ipos-{out['asOf']}.json"
+        path.write_text(json.dumps(out))
+        out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "health":
+        from .health import health
+        out = health()
+    elif cmd == "derivs":
+        from .derivs import backfill
+        out = backfill(**args)
     elif cmd == "fundamentals":
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
-        out = {"commands": ["train", "score", "track", "fundamentals"]}
+        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "health", "derivs"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 

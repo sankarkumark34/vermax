@@ -20,7 +20,7 @@ export interface AppConfig {
   pythonBin: string;
   requestDelayMs: number;
   userAgent: string;
-  scheduler: { enabled: boolean; dailyCron: string; retrainCron: string; timezone: string };
+  scheduler: { enabled: boolean; dailyCron: string; retryCron: string; watchdogCron: string; retrainCron: string; timezone: string };
   picks: { shortlist: number; finalCore: number; finalTheme: number; minPrice: number; maxPrice: number; capital: number; riskPerTrade: number; maxPositionPct: number };
 }
 
@@ -40,6 +40,8 @@ export function loadConfig(): AppConfig {
     scheduler: {
       enabled: bool(e.SCHEDULER_ENABLED, true),
       dailyCron: e.DAILY_CRON ?? '45 18 * * 1-5',
+      retryCron: e.RETRY_CRON ?? '30 20 * * 1-5',
+      watchdogCron: e.WATCHDOG_CRON ?? '0 21 * * 1-5',
       retrainCron: e.RETRAIN_CRON ?? '0 9 * * 0',
       timezone: e.TZ_NAME ?? 'Asia/Kolkata',
     },
@@ -50,7 +52,7 @@ export function loadConfig(): AppConfig {
       minPrice: num(e.PICKS_MIN_PRICE, 200),
       maxPrice: num(e.PICKS_MAX_PRICE, 650),
       capital: num(e.CAPITAL, 500000),
-      riskPerTrade: num(e.RISK_PER_TRADE, 0.01),
+      riskPerTrade: num(e.RISK_PER_TRADE, 0.005),
       maxPositionPct: num(e.MAX_POSITION_PCT, 0.2),
     },
   };

@@ -42,6 +42,23 @@ function PipelineButton() {
   )
 }
 
+function SystemStatus() {
+  const q = useQuery({ queryKey: ['system'], queryFn: api.system, refetchInterval: 60_000 })
+  const s = q.data
+  if (!s) return null
+  const fmt = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '-')
+  const stale = s.dataLatest && s.publishedAsOf && s.publishedAsOf < s.dataLatest
+  const next = s.jobs.find((j) => j.name === 'daily-pipeline')?.next
+  return (
+    <div className="mb-3 space-y-1 rounded-lg bg-soft px-3 py-2.5 text-[11.5px] text-sub">
+      <div className="flex justify-between"><span>NSE data</span><b className="num text-ink">{fmt(s.dataLatest)}</b></div>
+      <div className="flex justify-between"><span>Picks from</span><b className={`num ${stale ? 'text-amber' : 'text-ink'}`}>{fmt(s.publishedAsOf)}</b></div>
+      {next && <div className="flex justify-between"><span>Next run</span><span className="num">{new Date(next).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>}
+      <div className="flex justify-between"><span>Alerts</span><span className={s.alerts.telegram ? 'text-pos' : 'text-mute'}>{s.alerts.telegram ? 'Telegram on' : 'Telegram off'}</span></div>
+    </div>
+  )
+}
+
 function SymbolSearch() {
   const [q, setQ] = useState('')
   const go = useNavigate()
@@ -81,7 +98,7 @@ export default function App() {
               </NavLink>
             ))}
           </nav>
-          <div className="mt-auto"><PipelineButton /></div>
+          <div className="mt-auto"><SystemStatus /><PipelineButton /></div>
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-4 pb-20 pt-7 md:px-8 2xl:px-12">
