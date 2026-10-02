@@ -1,66 +1,74 @@
 # Vermax — NSE swing-trading decision platform
 
 Daily "what to buy tomorrow" list for Indian equities: **stop-loss, two targets, position size, reasons**, with a
-**Defence & Engineering priority**, fundamentals + news overlays, and a forward paper-trade journal.
-Holding period ≤ 10 trading days.
+**Defence & Engineering (incl. AI / data-centre infra) priority**, fundamentals + news overlays, screeners, and a forward
+paper-trade journal. Holding period ≤ 10 trading days.
 
 ```
-apps/api   NestJS (port 4100)  ingest NSE bhavcopy · orchestration · sentiment · journal · scheduler · REST
-ml/        Python (LightGBM)   features · walk-forward research · model · scorer · fundamentals · tracker
-apps/web   React + Vite (5190) Tomorrow · Sectors · Journal · Backtest · Stock pages
-data/      market.sqlite (seeded from the legacy NSE Picks DB, 2019→), picks/*.json, models/, research/
-docs/      BACKTEST.md (generated out-of-sample report)
+apps/api   NestJS (port 4100)  ingest NSE data · pipeline · sentiment · journal · alerts · scheduler · REST · serves the built UI
+ml/        Python (LightGBM)   features · walk-forward research · blend model · scorer · fundamentals · screeners · health
+apps/web   React + Vite        Tomorrow · Elite 3 · Screener · IPOs · Sectors · Journal · Backtest · Stock
+scripts/   start-vermax.cmd (auto-restart supervisor) · install/uninstall-autostart.cmd · .env.example.cmd
+data/      market.sqlite (NSE EOD since 2019) · derivs.sqlite (FII/F&O OI) · picks/ · models/ · research/ · screener/
+docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf
 ```
 
-## How a pick is made (each evening after ~18:45 IST)
+## How a pick is made (weekdays 18:45 IST, retry 20:30)
 
-1. **Ingest** NSE end-of-day (bhavcopy + delivery % + index closes) — `DataService`.
-2. **Features** per stock-day (`ml/vermax/features.py`): trend/momentum, ATR/ADX/RSI, squeeze & base structure, volume/delivery
-   surge, candle shape (hammer, engulfing, NR7, inside bar), 4 event setups (20-day breakout, pullback-to-EMA, squeeze breakout,
-   52-week-high breakout), **market regime** (Nifty vs 50/200-DMA, VIX, breadth), **sector strength** (equal-weight sector baskets, rank
-   vs all sectors) and Defence/Engineering theme flags.
-3. **Model**: LightGBM regression on the cross-sectional rank of the 10-day forward return (all ~1,000 liquid stocks), trained
-   walk-forward (train < year Y, test year Y, 15-day embargo).
-4. **Priority tilt**: Defence/Engineering stocks get `+0.03` on the ranking score **only while their sector ranks ≥ 60th percentile**
-   among all sectors (point-in-time). Max 2 picks per sector.
-5. **Overlays** (live only — free data has no point-in-time history): fundamentals via Yahoo (ROE, ROCE, debt/equity, sales & profit
-   CAGR, operating cash-flow, promoter holding, results-date gap risk → PASS/WATCH/AVOID; vetoes weak/loss-making/over-levered/
-   results-in-7-days) and Google-News sentiment with a transparent finance lexicon (vetoes recent fraud/SEBI/ED/insolvency headlines).
-6. **Trade plan** per pick: buy next open (skip if gap > +2.5%) · stop = 1.5×ATR clamped to 3–6% · book 50% at 1.5R and move stop to
-   breakeven · exit the rest at 3R · hard exit on day 10. Size = 1% risk ÷ stop distance (max 20% of capital, halved in a DEFENSIVE regime).
-7. **Journal**: every published pick is paper-traded with those exact rules, so live results can confirm or refute the backtest.
+1. **Ingest** NSE bhavcopy + delivery + index closes; recent sessions whose index/delivery files arrived late are re-fetched.
+2. **Derivatives**: NSE participant-wise OI (FII/DII/Client/Pro) and stock F&O open interest into `derivs.sqlite` (context only).
+3. **Features** (~70 per stock-day): trend/momentum, ATR/ADX/RSI, squeeze/base, volume & delivery surge, candles, 4 event setups,
+   market regime, sector strength, Defence/Engineering flags.
+4. **Model**: blend of a **5-seed LightGBM regressor ensemble** and a **LightGBM LambdaRank ranker** (average of daily percentile ranks),
+   target = cross-sectional rank of the 10-day forward return. Validated walk-forward (train < year Y, 15-day embargo).
+5. **Selection**: ₹200–650, liquid, up over the last 10 sessions, `+0.03` tilt for Defence/Engineering while their sector is ≥ 60th pct,
+   max 2 per sector; fundamentals (ROE/ROCE/D-E/growth/cash-flow) and news red-flag vetoes. **Elite 3** adds uptrend + strong sector + PASS.
+6. **Trade plan**: buy next open (skip if gap > +2.5%) · stop 1.5×ATR (3–6%) · 50% at 1.5R then breakeven · rest at 3R · exit by day 10.
+   Size = **0.5% risk** ÷ stop distance (max 20% per stock; halved when Nifty < 200-DMA).
+7. **Publish & track**: run stored, every pick paper-traded with the same rules; Telegram summary (optional); screener/IPO caches refreshed.
 
-## Honest results (docs/BACKTEST.md — out-of-sample 2021 → Sep 2026, 0.40% round-trip costs)
+## Screens
+* **Screener** — stocks positive over every chosen period: 1W/2W/3W/4W (5/10/15/20 sessions), 1M/3M/6M/1Y (calendar months,
+  Google convention), multi-select price ranges, max price (default ₹600), buy rank, Tomorrow rating, ETFs excluded,
+  **Live prices** toggle (delayed quote with live-anchored reference prices so returns match Google intraday).
+* **IPOs** — main-board listings from the NSE equity master (official listing date): listing price, since-listing return,
+  every period available since listing, from-high, live prices.
+* **Stock** — NSE close + delayed live price, chart (5D–1Y, EMA/DMA/volume), lower-circuit recovery history, fundamentals, news.
 
-| | Expectancy/trade | Profit factor | Positive trades |
-|---|---:|---:|---:|
-| Random 5 liquid stocks/day, same exits | −0.26% | 0.91 | 42.5% |
-| Model top-5 | +0.30% | 1.12 | 46.9% |
-| **Model top-5 + Defence/Engineering tilt (published)** | **+0.43%** | **1.17** | **47.4%** |
+## Honest results (docs/BACKTEST.md — out-of-sample 2021 → Sep 2026, 0.40% costs, 0.5% risk/trade)
 
-* The ranking is better than chance every year (rank-IC 0.05–0.09), but the money edge per trade is **thin**. Portfolio sim
-  ≈ +20% CAGR with ~−30% max drawdown; **2025 and 2026 YTD were flat/negative**. Weeks ≥ +5% happen in ~7% of weeks.
-  **Weekly +5–12% is not a realistic target for any system**; this is a small-edge, controlled-risk tool.
-* **Defence is not "always strong"**: model picks in Defence were −0.22%/trade overall (positive only in 2023), Engineering +0.74%.
-  That is why the priority is *conditional on the sector's own strength*, not permanent. Theme picks made when the sector ranks ≥ 60th pct:
-  +0.63%/trade; below it: +0.18%.
-* Caveats: tilt weight was chosen after seeing OOS results; Defence/Engineering name lists use today's knowledge (survivorship).
+| | Expectancy/trade | PF | CAGR | Max DD |
+|---|---:|---:|---:|---:|
+| Random 5 liquid stocks/day, same exits | −0.25% | 0.91 | −1.3% | −27.2% |
+| Model top-5 + tilt, no live filters | +0.43% | 1.17 | 10.5% | −12.1% |
+| **Published live rules (₹200–650, 2-week positive, tilt)** | **+0.24%** | **1.09** | **13.1%** | **−14.6%** |
+| Elite 3 weekly | +0.55% | — | — | 20% of weeks all 3 lose |
+
+* Rank-IC positive every year: 0.051, 0.057, 0.068, 0.090, 0.068, 0.069 (2021 → 2026).
+* Experiments: 5-seed ensemble + ranker blend beat a single regressor on IC (0.067 vs 0.063), worst year and drawdown → adopted.
+  FII/F&O positioning features raised IC slightly but hurt the worst year and 2026 → **not** adopted (shown as context only).
+* The edge is thin; weekly +5–12% is not realistic. Engineering list includes names known today as AI/data-centre winners (hindsight).
 
 ## Run it
 
 ```bash
-npm install                                   # once (Python deps: pandas numpy lightgbm scikit-learn pyarrow yfinance)
-python ml/seed_from_legacy.py <legacy.sqlite> data/market.sqlite   # one-off, already done
-cd ml && python -m vermax.cli train           # ~2 min: builds features, trains final model -> data/models/
-cd .. && npm run build -w api && node apps/api/dist/main.js       # API on :4100 (Swagger at /docs)
-npm run dev:web                               # UI on :5190
+npm install                                   # Python: pandas numpy lightgbm pyarrow yfinance requests reportlab
+cd ml && python -m vermax.cli train           # ~10 min: features + 5 regressors + ranker -> data/models/
+cd .. && npm run build -w web && npm run build -w api
+scripts\start-vermax.cmd                      # one process on http://127.0.0.1:4100 (UI + API + scheduler), auto-restarts
+scripts\install-autostart.cmd                 # start at Windows logon (undo: uninstall-autostart.cmd)
 ```
 
-Press **Refresh picks** in the UI (or `POST /api/pipeline/run`) — ingest → score → fundamentals → news → publish (~3 min first time).
-The scheduler runs it weekdays 18:45 IST and retrains on Sundays 09:00 IST. Research: `npm run ml:research` then
-`cd ml && python -m vermax.report` regenerates `docs/BACKTEST.md`.
+Alerts: copy `scripts/.env.example.cmd` to `scripts/.env.cmd`, set `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, restart, then
+`POST /api/system/test-alert`. You get the daily picks, pipeline failures, missing-data warnings, retrain results and model-health warnings.
 
-Config via env: `PICKS_MIN_PRICE/MAX_PRICE` (default 200/500), `CAPITAL`, `RISK_PER_TRADE`, `PYTHON_BIN`, `PORT`, `SCHEDULER_ENABLED`.
+Monitoring: `GET /api/system` (data freshness, next jobs, alerts) and `GET /api/model/health` (live rank-IC of published rankings,
+monthly out-of-sample IC, input drift) — also shown on the Backtest page and the sidebar.
+
+Research: `python -m vermax.xsection` → `python -m vermax.report` (docs/BACKTEST.md); `python -m vermax.experiments [derivs]`.
+
+Config via env: `PICKS_MIN_PRICE/MAX_PRICE` (200/650), `CAPITAL`, `RISK_PER_TRADE` (0.005), `PORT`, `PYTHON_BIN`,
+`DAILY_CRON`, `RETRY_CRON`, `WATCHDOG_CRON`, `RETRAIN_CRON`, `SCHEDULER_ENABLED`, `TELEGRAM_*`.
 
 ## Not financial advice
 Statistical decision support. Publishing these picks to others requires SEBI Research Analyst registration in India.

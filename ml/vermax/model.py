@@ -56,3 +56,7 @@ def walk_forward(df: pd.DataFrame, features: list[str], first_test_year: int = 2
         m = fit(tr, features)
         pred.loc[te.index] = m.predict(te[features], num_iteration=m.best_iteration)
     return pred
+
+# Derivatives positioning features (vermax/derivs.py). Market-level FII/client futures positioning + stock F&O OI.
+DERIV_FEATURES = ["fii_idx_long_ratio", "fii_idx_long_chg5", "fii_stk_long_ratio", "client_idx_long_ratio", "fii_put_call_long",
+                  "fut_oi_chg1", "fut_oi_chg5", "pcr_oi", "pcr_chg5", "is_fno"]

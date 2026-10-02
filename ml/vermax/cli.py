@@ -41,6 +41,15 @@ def main(argv: list[str]) -> None:
         path = dest / f"ipos-{out['asOf']}.json"
         path.write_text(json.dumps(out))
         out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "ipo-quality":
+        from .ipo_quality import ipo_quality
+        from . import config
+        out = ipo_quality(**args)
+        dest = config.OUT_DIR.parent / "screener"
+        dest.mkdir(parents=True, exist_ok=True)
+        path = dest / f"ipo-quality-{out['months']}m-{out['asOf']}.json"
+        path.write_text(json.dumps(out, default=str))
+        out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
     elif cmd == "health":
         from .health import health
         out = health()
@@ -51,7 +60,7 @@ def main(argv: list[str]) -> None:
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
-        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "health", "derivs"]}
+        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "ipo-quality", "health", "derivs"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 

@@ -1,4 +1,4 @@
-import type { LiveQuote, Journal, ScreenerResp, PipelineState, Performance, Run, StockResp } from './types'
+import type { IpoResp, LiveQuote, Journal, ScreenerResp, PipelineState, Performance, Run, StockResp } from './types'
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init)
@@ -16,6 +16,7 @@ export const api = {
   system: () => j<{ dataLatest: string | null; todayIst: string; publishedAsOf: string | null; alerts: { telegram: boolean; recent: { at: string; level: string; text: string }[] }; jobs: { name: string; next: string | null }[] }>('/api/system'),
   state: () => j<PipelineState>('/api/pipeline/state'),
   run: () => j<{ started: boolean; state: PipelineState }>('/api/pipeline/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }),
+  ipos: () => j<IpoResp>('/api/ipos'),
   screener: () => j<ScreenerResp>('/api/screener'),
   journal: () => j<Journal>('/api/journal'),
   journalRefresh: () => j<unknown>('/api/journal/refresh', { method: 'POST' }),

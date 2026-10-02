@@ -10,6 +10,7 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import requests
 from . import config
@@ -60,7 +61,7 @@ def participant(date: str) -> pd.DataFrame | None:
     raw = _get(f"https://nsearchives.nseindia.com/content/nsccl/fao_participant_oi_{d}{m}{y}.csv", CACHE / "participant" / f"{y}{m}{d}.csv")
     if raw is None:
         return None
-    df = pd.read_csv(io.BytesIO(raw), skiprows=1)
+    df = pd.read_csv(io.BytesIO(raw), skiprows=1, thousands=",")
     df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
     df = df[df["client_type"].astype(str).str.strip().isin(["Client", "DII", "FII", "Pro"])]
     out = pd.DataFrame({
@@ -148,23 +149,28 @@ def load_features() -> tuple[pd.DataFrame, pd.DataFrame]:
     mk = pd.DataFrame()
     if len(p):
         p["date"] = pd.to_datetime(p["date"])
+        num = [c for c in p.columns if c not in ("date", "client")]
+        p[num] = p[num].apply(lambda col: pd.to_numeric(col.astype(str).str.replace(",", "", regex=False).str.strip(), errors="coerce"))
         piv = p.pivot_table(index="date", columns="client", values=["fut_idx_long", "fut_idx_short", "opt_idx_put_long", "opt_idx_call_long", "fut_stk_long", "fut_stk_short"])
         mk = pd.DataFrame(index=piv.index)
         mk["fii_idx_long_ratio"] = piv[("fut_idx_long", "FII")] / (piv[("fut_idx_long", "FII")] + piv[("fut_idx_short", "FII")])
         mk["fii_idx_long_chg5"] = mk["fii_idx_long_ratio"].diff(5)
         mk["fii_stk_long_ratio"] = piv[("fut_stk_long", "FII")] / (piv[("fut_stk_long", "FII")] + piv[("fut_stk_short", "FII")])
         mk["client_idx_long_ratio"] = piv[("fut_idx_long", "Client")] / (piv[("fut_idx_long", "Client")] + piv[("fut_idx_short", "Client")])
-        mk["fii_put_call_long"] = piv[("opt_idx_put_long", "FII")] / piv[("opt_idx_call_long", "FII")].replace(0, pd.NA)
+        mk["fii_put_call_long"] = piv[("opt_idx_put_long", "FII")] / piv[("opt_idx_call_long", "FII")].replace(0, np.nan)
     if len(f):
         f["date"] = pd.to_datetime(f["date"])
         f = f.sort_values(["symbol", "date"])
         g = f.groupby("symbol", sort=False)
         f["fut_oi_chg1"] = f["fut_oi"] / g["fut_oi"].shift(1) - 1
         f["fut_oi_chg5"] = f["fut_oi"] / g["fut_oi"].shift(5) - 1
-        f["pcr_oi"] = f["put_oi"] / f["call_oi"].replace(0, pd.NA)
+        for col in ("fut_oi", "fut_contracts", "call_oi", "put_oi"):
+            f[col] = pd.to_numeric(f[col], errors="coerce").astype(float)
+        f["pcr_oi"] = f["put_oi"] / f["call_oi"].replace(0, np.nan)
         f["pcr_chg5"] = f["pcr_oi"] - g["pcr_oi"].shift(5)
         f["is_fno"] = 1
         f = f[["date", "symbol", "fut_oi_chg1", "fut_oi_chg5", "pcr_oi", "pcr_chg5", "is_fno"]]
+        f[["fut_oi_chg1", "fut_oi_chg5", "pcr_oi", "pcr_chg5"]] = f[["fut_oi_chg1", "fut_oi_chg5", "pcr_oi", "pcr_chg5"]].replace([np.inf, -np.inf], np.nan).astype(float)
     return mk.astype(float) if len(mk) else mk, f
 
 

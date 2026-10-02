@@ -32,6 +32,7 @@ export interface SectorRow {
 export interface Regime {
   label: 'BULLISH' | 'PULLBACK' | 'DEFENSIVE'; sizeMultiplier: number; niftyVs50dma: number; niftyVs200dma: number
   niftyRet20: number; vix: number; vixPercentile: number; breadth50: number; breadth200: number; advanceRatio: number; note: string
+  fiiIndexLongRatio?: number | null; fiiIndexLongChg5?: number | null
 }
 export interface Run {
   asOf: string; tradeDate: string; generatedAt: string
@@ -91,10 +92,18 @@ export interface CircuitSummary extends CircuitBrief { list: CircuitEvent[] }
 
 export interface ScreenerRow {
   symbol: string; name: string | null; sector: string; close: number; chg1: number | null; turnoverCr: number; bars: number
-  deliveryPct: number | null; d5: number | null; d10: number | null; w3: number | null; m1: number | null; q1: number | null; h1: number | null; y1: number | null
+  deliveryPct: number | null; d5: number | null; d10: number | null; w3: number | null; w4: number | null; m1: number | null; q1: number | null; h1: number | null; y1: number | null
+  prevClose?: number | null; refs?: Record<string, number | null>; refsLive?: Record<string, number | null>
   modelRank: number | null; modelScore: number | null; vetoReason?: string | null
   rating?: { grade: 'A' | 'B' | 'C' | 'D' | '-'; eligible: boolean; reasons: string[]; tomorrow: 'elite' | 'core' | 'theme' | null; score: number }
 }
-export interface ScreenerResp { asOf: string; generatedAt: string; count: number; rankAsOf: string | null; rankOf: number; rows: ScreenerRow[] }
+export interface ScreenerResp { asOf: string; liveSession?: string; generatedAt: string; count: number; rankAsOf: string | null; rankOf: number; rows: ScreenerRow[] }
 
 export interface LiveQuote { symbol: string; price: number; prevClose: number | null; changePct: number | null; dayHigh: number | null; dayLow: number | null; time: string | null; source: 'yahoo' }
+
+export interface IpoRow extends ScreenerRow {
+  listingDate: string; sessions: number; listOpen: number | null; listClose: number | null; sinceListing: number | null
+  highSinceListing: number | null; fromHigh: number | null; lowSinceListing: number | null
+  issuePrice?: number | null; vsIssue?: number | null; listingGain?: number | null
+}
+export interface IpoResp { asOf: string; liveSession?: string; generatedAt: string; count: number; months: number; rows: IpoRow[] }

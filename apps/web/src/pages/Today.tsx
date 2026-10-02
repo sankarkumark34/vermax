@@ -55,6 +55,10 @@ export default function Today() {
             <Metric label="Nifty vs 50-DMA" value={pct(r.niftyVs50dma, 1, true)} cls={tone(r.niftyVs50dma)} />
             <Metric label="India VIX" value={r.vix.toFixed(1)} />
             <Metric label="Stocks > 50-DMA" value={pct(r.breadth50, 0)} />
+            {r.fiiIndexLongRatio != null && (
+              <Metric label="FII index futures long" value={pct(r.fiiIndexLongRatio, 0)} cls={r.fiiIndexLongRatio < 0.3 ? 'text-neg' : r.fiiIndexLongRatio > 0.6 ? 'text-pos' : 'text-ink'}
+                sub={r.fiiIndexLongChg5 != null ? `${r.fiiIndexLongChg5 > 0 ? '+' : ''}${(r.fiiIndexLongChg5 * 100).toFixed(1)} pts in 5d · context only` : 'context only'} />
+            )}
             <Metric label="Position size" value={`${m}×`} sub={m < 1 ? 'reduced' : 'normal'} />
           </div>
           {m < 1 && <p className="mt-3 text-xs text-mute">{r.note}</p>}

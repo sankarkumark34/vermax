@@ -30,19 +30,21 @@ def _split(df, y, embargo_days=15):
     return tr[tr.date.dt.dayofyear % 2 == 0], te
 
 
-def wf_regress(df, seeds=(11,)):
+def wf_regress(df, seeds=(11,), feats=None):
+    feats = feats or ALL_FEATURES
     pred = pd.Series(np.nan, index=df.index)
     for y in _years(df):
         tr, te = _split(df, y)
         p = np.zeros(len(te))
         for s in seeds:
-            m = lgb.train({**XS_PARAMS, "seed": s, "bagging_seed": s, "feature_fraction_seed": s}, lgb.Dataset(tr[ALL_FEATURES], tr["y"]), 250)
-            p += m.predict(te[ALL_FEATURES]) / len(seeds)
+            m = lgb.train({**XS_PARAMS, "seed": s, "bagging_seed": s, "feature_fraction_seed": s}, lgb.Dataset(tr[feats], tr["y"]), 250)
+            p += m.predict(te[feats]) / len(seeds)
         pred.loc[te.index] = p
     return pred
 
 
-def wf_rank(df):
+def wf_rank(df, feats=None):
+    feats = feats or ALL_FEATURES
     pred = pd.Series(np.nan, index=df.index)
     params = dict(objective="lambdarank", learning_rate=0.05, num_leaves=31, min_child_samples=500, feature_fraction=0.7,
                   bagging_fraction=0.7, bagging_freq=1, lambda_l2=50.0, max_depth=6, verbose=-1, seed=11, n_jobs=6,
@@ -52,8 +54,8 @@ def wf_rank(df):
         tr = tr.sort_values("date")
         rel = (tr.groupby("date")["fwd"].rank(pct=True) * 10).clip(upper=9.999).astype(int)   # 0..9 relevance per day
         groups = tr.groupby("date", sort=True).size().to_numpy()
-        m = lgb.train(params, lgb.Dataset(tr[ALL_FEATURES], rel, group=groups), 250)
-        pred.loc[te.index] = m.predict(te[ALL_FEATURES])
+        m = lgb.train(params, lgb.Dataset(tr[feats], rel, group=groups), 250)
+        pred.loc[te.index] = m.predict(te[feats])
     return pred
 
 
@@ -94,5 +96,30 @@ def main():
     print("total", round(time.time() - t0), "s")
 
 
+
+
+def derivs_main():
+    """A/B: production blend with vs without derivatives features (requires the derivs backfill + rebuilt features)."""
+    from .model import DERIV_FEATURES
+    from .production import SEEDS
+    df = prep()
+    bars = pd.read_parquet(config.OUT_DIR / "features.parquet", columns=["symbol", "date", "open", "high", "low", "close"])
+    dates = pd.DatetimeIndex(sorted(bars.date.unique()))
+    res = {}
+    for name, feats in (("blend", ALL_FEATURES), ("blend+derivs", ALL_FEATURES + [f for f in DERIV_FEATURES if f in df.columns])):
+        e = wf_regress(df, SEEDS, feats)
+        r = wf_rank(df, feats)
+        df[name] = (e.groupby(df.date).rank(pct=True) + r.groupby(df.date).rank(pct=True)) / 2
+        print(name, "done", flush=True)
+    oos = df[df["blend"].notna()].copy()
+    d2 = dates[dates >= oos.date.min()]
+    for name in ("blend", "blend+derivs"):
+        res[name] = evaluate(oos, name, bars, d2)
+    (config.OUT_DIR / "experiments_derivs.json").write_text(json.dumps(res, indent=1))
+    for k, v in res.items():
+        print(f"{k:13s} IC {v['icMean']:.4f} min {v['icMinYear']:.4f} exp {v['expPct']:.2f} PF {v['PF']:.2f} CAGR {v['CAGR']:.1f} DD {v['maxDD']:.1f} {v['expByYear']}")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    derivs_main() if len(sys.argv) > 1 and sys.argv[1] == "derivs" else main()

@@ -92,6 +92,10 @@ ${err.message.slice(0, 400)}`);
     this.step('journal: updating open paper trades');
     await this.journal.refresh().catch((e: Error) => this.log.warn(`journal refresh failed: ${e.message}`));
 
+    this.step('derivatives positioning (FII / F&O open interest)');
+    const since = new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10);
+    await this.bridge.run('derivs', { start: since }, 15 * 60_000).catch((e: Error) => this.log.warn(`derivs update failed: ${e.message}`));
+
     this.step('scoring universe (python)');
     const res = await this.bridge.run<{ path: string; asOf: string }>('score', {
       shortlist: this.cfg.picks.shortlist + 10,
@@ -183,6 +187,9 @@ ${err.message.slice(0, 400)}`);
       disclaimer: DISCLAIMER,
     };
     await this.persist(run, file.ranking ?? []);
+    // Refresh the screener and IPO caches for the new session so those pages open instantly (non-fatal).
+    this.step('refreshing screener and IPO lists');
+    for (const [cmd, args] of [['screener', {}], ['ipos', {}], ['ipo-quality', { months: 12 }]] as const) await this.bridge.run(cmd, args, 40 * 60_000).catch((e: Error) => this.log.warn(`${cmd} refresh failed: ${e.message}`));
     this.state.lastAsOf = run.asOf;
     this.step('done');
     return run;

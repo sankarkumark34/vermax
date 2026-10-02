@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DataSource } from 'typeorm';
 import { NotifyService } from '../notify/notify.service.js';
 import { SchedulerService } from '../scheduler/scheduler.service.js';
+import { purchaseRating } from '../ipo/rating.js';
 import { QuoteService } from '../quote/quote.service.js';
 import { CircuitService } from '../circuit/circuit.service.js';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
@@ -189,6 +190,66 @@ export class ApiController {
     const symbol = raw.toUpperCase();
     if (!SYMBOL.test(symbol)) throw new BadRequestException('bad symbol');
     return { quote: await this.quotes.get(symbol) };
+  }
+
+  @Get('ipos')
+  async ipos() {
+    const latest = await this.data.latestDate();
+    const file = path.join(this.cfg.repoRoot, 'data', 'screener', `ipos-${latest}.json`);
+    if (!fs.existsSync(file)) await this.bridge.run('ipos', {}, 10 * 60_000);
+    if (!fs.existsSync(file)) throw new NotFoundException('IPO data unavailable');
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+
+  private ipoQualityBuilding = false;
+  private ipoRated: { key: string; data: unknown } | null = null;
+
+  /** Curated recent IPOs (12-month superset; the UI narrows to 3/6/12 months). Serves the newest file and refreshes in the background. */
+  @Get('ipos/quality')
+  async ipoQuality() {
+    const latest = await this.data.latestDate();
+    const dir = path.join(this.cfg.repoRoot, 'data', 'screener');
+    const want = path.join(dir, `ipo-quality-12m-${latest}.json`);
+    if (!fs.existsSync(want) && !this.ipoQualityBuilding) {
+      this.ipoQualityBuilding = true;
+      void this.bridge.run('ipo-quality', { months: 12 }, 40 * 60_000).finally(() => (this.ipoQualityBuilding = false));
+    }
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.startsWith('ipo-quality-12m-')).sort() : [];
+    if (!files.length) return { building: true, rows: [], asOf: null };
+    const file = files.at(-1)!;
+    const hourKey = `${file}:${new Date().toISOString().slice(0, 13)}`;
+    if (this.ipoRated?.key !== hourKey) {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as { rows: Record<string, any>[] };
+      const run = await this.picks.latest();
+      const market = run ? { regime: run.regime.label, breadth50: run.regime.breadth50, fiiIndexLongRatio: (run.regime as { fiiIndexLongRatio?: number | null }).fiiIndexLongRatio ?? null } : null;
+      // News sentiment for every listing (cached 3 h in SentimentService), a few at a time.
+      for (let i = 0; i < data.rows.length; i += 6) {
+        await Promise.all(data.rows.slice(i, i + 6).map(async (r) => {
+          const s = await this.sentiment.analyse(r.symbol, r.name);
+          r.sentiment = { score: s.score, label: s.label, severe: s.severe, headlines: s.headlines, items: s.items.slice(0, 4) };
+        }));
+      }
+      for (const r of data.rows) {
+        r.rating = purchaseRating({
+          fundamentals: r.fundamentals, sentiment: r.sentiment, weeks: r.weeks, months: r.months, vsIssue: r.vsIssue ?? null,
+          fromHigh: r.fromHigh ?? null, listingGain: r.listingGain ?? null, deliveryAvg: r.deliveryAvg ?? null, turnoverCr: r.turnoverCr ?? null, market,
+        });
+      }
+      this.ipoRated = { key: hourKey, data };
+    }
+    return { ...(this.ipoRated.data as object), building: this.ipoQualityBuilding, stale: file !== path.basename(want) };
+  }
+
+  /** Delayed live quotes for up to 60 symbols (display-only; analytics stay on NSE closes). */
+  @Get('quotes')
+  async quotesBatch(@Query('symbols') symbols = '') {
+    const list = [...new Set(symbols.toUpperCase().split(',').map((x) => x.trim()).filter((x) => SYMBOL.test(x)))].slice(0, 60);
+    const out: Record<string, unknown> = {};
+    for (let i = 0; i < list.length; i += 8) {
+      const batch = await Promise.all(list.slice(i, i + 8).map((sym) => this.quotes.get(sym)));
+      batch.forEach((q, j) => (out[list[i + j]] = q));
+    }
+    return out;
   }
 
   // ---- single stock --------------------------------------------------------------------------

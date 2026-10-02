@@ -22,6 +22,17 @@ XS_PARAMS = dict(objective="regression", learning_rate=0.05, num_leaves=31, min_
                  feature_fraction=0.7, bagging_fraction=0.7, bagging_freq=1, lambda_l2=50.0, max_depth=6,
                  verbose=-1, seed=11, n_jobs=6)
 ALL_FEATURES = FEATURES + EXTRA
+# Production model = blend of a 5-seed regressor ensemble and a LambdaRank ranker (walk-forward: higher rank-IC,
+# better worst year and lower drawdown than a single regressor; see vermax/experiments.py).
+SEEDS = (11, 23, 37, 51, 77)
+RANK_PARAMS = dict(objective="lambdarank", learning_rate=0.05, num_leaves=31, min_child_samples=500, feature_fraction=0.7,
+                   bagging_fraction=0.7, bagging_freq=1, lambda_l2=50.0, max_depth=6, verbose=-1, seed=11, n_jobs=6,
+                   lambdarank_truncation_level=50, label_gain=list(range(10)))
+RANK_FILE = config.MODEL_DIR / "xs_rank.txt"
+
+
+def _seed_file(seed: int):
+    return config.MODEL_DIR / f"xs_model_s{seed}.txt"
 TILT = 0.03
 TILT_MIN_RANK = 0.6
 
@@ -41,11 +52,21 @@ def train(rounds: int = 250, embargo_days: int = 15) -> dict:
     d = prep(df.copy())                                  # rows with a resolved 10-day forward return
     d = d[d.date < d.date.max() - pd.Timedelta(days=embargo_days)]
     d = d[d.date.dt.dayofyear % 2 == 0]                  # identical subsampling to the validated study
-    m = lgb.train(XS_PARAMS, lgb.Dataset(d[ALL_FEATURES], d["y"]), rounds)
-    m.save_model(str(MODEL_FILE))
+    models = []
+    for sd in SEEDS:
+        m_ = lgb.train({**XS_PARAMS, "seed": sd, "bagging_seed": sd, "feature_fraction_seed": sd}, lgb.Dataset(d[ALL_FEATURES], d["y"]), rounds)
+        m_.save_model(str(_seed_file(sd)))
+        models.append(m_)
+    m = models[0]
+    m.save_model(str(MODEL_FILE))                         # first seed doubles as the explainer (SHAP reasons)
+    dr = d.sort_values("date")
+    rel = (dr.groupby("date")["fwd"].rank(pct=True) * 10).clip(upper=9.999).astype(int)
+    ranker = lgb.train(RANK_PARAMS, lgb.Dataset(dr[ALL_FEATURES], rel, group=dr.groupby("date", sort=True).size().to_numpy()), rounds)
+    ranker.save_model(str(RANK_FILE))
     imp = sorted(zip(ALL_FEATURES, m.feature_importance("gain")), key=lambda x: -x[1])[:15]
     meta = {"trained_at": datetime.now(timezone.utc).isoformat(), "data_to": str(data_to.date()),
             "train_rows": int(len(d)), "features": ALL_FEATURES, "rounds": rounds,
+            "ensemble": {"regressor_seeds": list(SEEDS), "ranker": RANK_FILE.name, "blend": "mean of daily percentile ranks"},
             "top_importance": [(a, round(float(b), 1)) for a, b in imp], "seconds": round(time.time() - t0)}
     META_FILE.write_text(json.dumps(meta, indent=2))
     return meta
@@ -76,6 +97,8 @@ def _regime(day: pd.DataFrame) -> dict:
             "vix": round(float(r["vix"]), 2), "vixPercentile": round(float(r["vix_pct"]), 2),
             "breadth50": round(float(r["breadth50"]), 3), "breadth200": round(float(r["breadth200"]), 3),
             "advanceRatio": round(float(r["adv_ratio"]), 3),
+            "fiiIndexLongRatio": round(float(r["fii_idx_long_ratio"]), 3) if "fii_idx_long_ratio" in r and pd.notna(r["fii_idx_long_ratio"]) else None,
+            "fiiIndexLongChg5": round(float(r["fii_idx_long_chg5"]), 3) if "fii_idx_long_chg5" in r and pd.notna(r["fii_idx_long_chg5"]) else None,
             "note": ("Nifty below its 200-DMA: position sizes are halved (risk-control rule, not a backtested edge)."
                      if label == "DEFENSIVE" else "Nifty above its 200-DMA: normal sizing.")}
 
@@ -104,8 +127,14 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.
     if day.empty:
         raise SystemExit(f"no liquid rows for {latest}")
     X = day[meta["features"]]
-    day["prob"] = model.predict(X)
     contrib = model.predict(X, pred_contrib=True)
+    seed_files = [_seed_file(sd) for sd in SEEDS]
+    if RANK_FILE.exists() and all(f.exists() for f in seed_files):
+        reg = np.mean([lgb.Booster(model_file=str(f)).predict(X) for f in seed_files], axis=0)
+        rnk = lgb.Booster(model_file=str(RANK_FILE)).predict(X)
+        day["prob"] = (pd.Series(reg, index=day.index).rank(pct=True) + pd.Series(rnk, index=day.index).rank(pct=True)) / 2
+    else:                                                 # fallback: single regressor
+        day["prob"] = model.predict(X)
     day["ci"] = range(len(day))
     day = day[(day.ret1.abs() < 0.19)]                                   # skip circuit-locked names
     strong = (day.is_theme == 1) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)

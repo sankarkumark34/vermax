@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Crown, ListFilter, FlaskConical, Layers, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { BadgeCheck, BookOpen, Crown, ListFilter, Rocket, FlaskConical, Layers, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Route, Routes, useNavigate } from 'react-router'
 import { api } from './lib/api'
 import Elite from './pages/Elite'
+import IpoStocks from './pages/IpoStocks'
+import Ipos from './pages/Ipos'
 import Journal from './pages/Journal'
 import Performance from './pages/Performance'
 import Sectors from './pages/Sectors'
@@ -15,6 +17,8 @@ const nav = [
   { to: '/', label: 'Tomorrow', icon: Sparkles },
   { to: '/elite', label: 'Elite 3', icon: Crown },
   { to: '/screener', label: 'Screener', icon: ListFilter },
+  { to: '/ipo-stocks', label: 'IPO Stocks', icon: BadgeCheck },
+  { to: '/ipos', label: 'IPO Screener', icon: Rocket },
   { to: '/sectors', label: 'Sectors', icon: Layers },
   { to: '/journal', label: 'Journal', icon: BookOpen },
   { to: '/performance', label: 'Backtest', icon: FlaskConical },
@@ -107,6 +111,8 @@ export default function App() {
             <Route path="/" element={<Today />} />
             <Route path="/elite" element={<Elite />} />
             <Route path="/screener" element={<Screener />} />
+            <Route path="/ipo-stocks" element={<IpoStocks />} />
+            <Route path="/ipos" element={<Ipos />} />
             <Route path="/sectors" element={<Sectors />} />
             <Route path="/journal" element={<Journal />} />
             <Route path="/performance" element={<Performance />} />

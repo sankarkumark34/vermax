@@ -71,7 +71,12 @@ def main():
     df = prep()
     print("rows", len(df), df.date.min().date(), df.date.max().date(), flush=True)
     feats = FEATURES + EXTRA
-    df["p_all"] = wf_predict(df, feats)
+    # p_all = the production model: 5-seed regressor ensemble blended with a LambdaRank ranker (daily percentile ranks)
+    from .experiments import wf_rank, wf_regress
+    from .production import ALL_FEATURES as PROD_FEATURES, SEEDS
+    ens = wf_regress(df, SEEDS, PROD_FEATURES)
+    rnk = wf_rank(df, PROD_FEATURES)
+    df["p_all"] = (ens.groupby(df.date).rank(pct=True) + rnk.groupby(df.date).rank(pct=True)) / 2
     df["p_nt"] = wf_predict(df, [f for f in feats if f not in ("is_defence", "is_engineering", "is_theme")])
     oos = df[df.p_all.notna()].copy()
     oos.to_parquet(config.OUT_DIR / "xs_oos.parquet")

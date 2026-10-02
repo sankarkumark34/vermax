@@ -116,6 +116,15 @@ def build_features(start: str = "2019-01-01", end: str | None = None) -> pd.Data
     # index files can lag the equity bhavcopy by hours: carry the last known market context forward
     m = m.reindex(sorted(set(m.index) | set(df["date"].unique()))).ffill()
     df = df.merge(m, left_on="date", right_index=True, how="left")
+    # derivatives positioning (NSE participant OI + stock F&O open interest), when the backfill exists
+    from .derivs import load_features as load_derivs
+    dmk, dfo = load_derivs()
+    if len(dmk):
+        dmk = dmk.reindex(sorted(set(dmk.index) | set(df["date"].unique()))).ffill(limit=3)
+        df = df.merge(dmk, left_on="date", right_index=True, how="left")
+    if len(dfo):
+        df = df.merge(dfo, on=["date", "symbol"], how="left")
+        df["is_fno"] = df["is_fno"].fillna(0)
     df["rs20"] = df.ret20 - df.nifty_ret20
     df["rs60"] = df.ret60 - df.nifty_ret60
 

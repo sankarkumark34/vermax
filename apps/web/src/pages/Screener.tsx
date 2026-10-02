@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Chip, ErrorBox, Loading } from '../components/ui'
 import { api } from '../lib/api'
+import { refsFor, retVs, useLiveQuotes } from '../lib/live'
 import { inr, pctRaw, tone } from '../lib/format'
 import type { ScreenerRow } from '../lib/types'
 
@@ -17,16 +18,17 @@ const BUCKETS = [
 type BK = (typeof BUCKETS)[number]['k']
 
 const HZ = [
-  { k: 'd5', label: '5D' }, { k: 'd10', label: '10D' }, { k: 'w3', label: '3W' }, { k: 'm1', label: '1M' },
+  { k: 'd5', label: '1W' }, { k: 'd10', label: '2W' }, { k: 'w3', label: '3W' }, { k: 'w4', label: '4W' }, { k: 'm1', label: '1M' },
   { k: 'q1', label: '3M' }, { k: 'h1', label: '6M' }, { k: 'y1', label: '1Y' },
 ] as const
 type HK = (typeof HZ)[number]['k']
 
+const ALL: HK[] = ['d5', 'd10', 'w3', 'w4', 'm1', 'q1', 'h1', 'y1']
 const PRESETS: { label: string; keys: HK[] }[] = [
-  { label: 'Short term (5D–1M)', keys: ['d5', 'd10', 'w3', 'm1'] },
-  { label: 'Up to 3 months', keys: ['d5', 'd10', 'w3', 'm1', 'q1'] },
-  { label: 'Up to 6 months', keys: ['d5', 'd10', 'w3', 'm1', 'q1', 'h1'] },
-  { label: 'All horizons', keys: ['d5', 'd10', 'w3', 'm1', 'q1', 'h1', 'y1'] },
+  { label: 'Every period (1W–1Y)', keys: ALL },
+  { label: 'Weeks (1W–4W)', keys: ['d5', 'd10', 'w3', 'w4'] },
+  { label: 'Up to 3 months', keys: ['d5', 'd10', 'w3', 'w4', 'm1', 'q1'] },
+  { label: 'Up to 6 months', keys: ['d5', 'd10', 'w3', 'w4', 'm1', 'q1', 'h1'] },
 ]
 
 type SortKey = 'symbol' | 'ratingScore' | 'modelRank' | 'close' | 'chg1' | 'turnoverCr' | 'npos' | HK
@@ -34,7 +36,9 @@ type SortKey = 'symbol' | 'ratingScore' | 'modelRank' | 'close' | 'chg1' | 'turn
 export default function Screener() {
   const q = useQuery({ queryKey: ['screener'], queryFn: api.screener, staleTime: 5 * 60_000 })
   const [buckets, setBuckets] = useState<BK[]>(['b1'])
-  const [req, setReq] = useState<HK[]>(['d5', 'd10', 'w3', 'm1'])
+  const [req, setReq] = useState<HK[]>(ALL)
+  const [maxPrice, setMaxPrice] = useState(600)
+  const [live, setLive] = useState(false)
   const [minTurn, setMinTurn] = useState(2)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: 'ratingScore', dir: -1 })
@@ -44,8 +48,8 @@ export default function Screener() {
   const rows = useMemo(() => (q.data?.rows ?? []).map((r) => ({ ...r, npos: HZ.filter((h) => (r[h.k] ?? -1) > 0).length, ratingScore: r.rating?.score ?? -1 })), [q.data])
 
   const passing = useMemo(
-    () => rows.filter((r) => r.turnoverCr >= minTurn && req.every((k) => r[k] != null && (r[k] as number) > 0) && (!search || r.symbol.includes(search.toUpperCase()) || (r.name ?? '').toLowerCase().includes(search.toLowerCase()))),
-    [rows, req, minTurn, search],
+    () => rows.filter((r) => r.turnoverCr >= minTurn && (!maxPrice || r.close <= maxPrice) && req.every((k) => r[k] != null && (r[k] as number) > 0) && (!search || r.symbol.includes(search.toUpperCase()) || (r.name ?? '').toLowerCase().includes(search.toLowerCase()))),
+    [rows, req, minTurn, search, maxPrice],
   )
   const counts = useMemo(() => Object.fromEntries(BUCKETS.map((b) => [b.k, passing.filter((r) => r.close >= b.lo && r.close < b.hi).length])), [passing])
   const shown = useMemo(() => {
@@ -61,6 +65,12 @@ export default function Screener() {
       return ((av as number) - (cv as number)) * sort.dir
     })
   }, [passing, buckets, sort])
+  const pageSyms = useMemo(() => {
+    const pgs = Math.max(1, Math.ceil(shown.length / pageSize))
+    const c = Math.min(page, pgs)
+    return shown.slice((c - 1) * pageSize, c * pageSize).map((r) => r.symbol)
+  }, [shown, page, pageSize])
+  const lq = useLiveQuotes(pageSyms, live)
 
   if (q.isLoading) return <Loading what="screener (first load takes ~20s)" />
   if (q.error) return <ErrorBox error={q.error} />
@@ -85,13 +95,19 @@ export default function Screener() {
     )
   }
   const cell = (v: number | null) => <td className={clsx('num px-3 py-2 text-right', tone(v))}>{v == null ? '-' : pctRaw(v, 1)}</td>
+  // Live mode: recompute displayed price/returns from the delayed live price and each horizon's reference close.
+  const view = (r: ScreenerRow) => {
+    const q2 = live ? lq.data?.[r.symbol] : null
+    if (!q2) return { price: r.close, chg1: r.chg1, ret: (k: HK) => r[k] as number | null, live: false }
+    return { price: q2.price, chg1: retVs(q2.price, q2.prevClose ?? r.prevClose), ret: (k: HK) => retVs(q2.price, refsFor(r, q2.time, data.asOf)?.[k] ?? null), live: true }
+  }
 
   return (
     <>
       <div>
         <div className="label">Screener</div>
-        <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">Positive-everywhere stocks by price range</h1>
-        <p className="mt-1 max-w-3xl text-[13px] text-sub">Shows stocks that closed <b>up</b> over every horizon you tick — so the trend is positive short-term <i>and</i> longer-term. Data as of {data.asOf}, split/bonus adjusted (5D–3W = trading sessions; 1M, 3M, 6M, 1Y = calendar months, like Google), {data.count.toLocaleString('en-IN')} stocks scanned.</p>
+        <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">Positive in every period</h1>
+        <p className="mt-1 max-w-3xl text-[13px] text-sub">Shows stocks that closed <b>up</b> over every horizon you tick — so the trend is positive short-term <i>and</i> longer-term. Official NSE close of {data.asOf}, split/bonus adjusted (1W–4W = 5/10/15/20 trading sessions; 1M, 3M, 6M, 1Y = calendar months, same as Google; ETFs excluded), {data.count.toLocaleString('en-IN')} stocks scanned.</p>
       </div>
 
       <div className="card mt-5 p-5">
@@ -109,8 +125,16 @@ export default function Screener() {
           <label className="text-xs text-sub">Min daily turnover (₹ Cr)
             <input type="number" min={0} step={0.5} value={minTurn} onChange={(e) => { setMinTurn(Number(e.target.value) || 0); setPage(1) }} className="num mt-1 block w-28" />
           </label>
+          <label className="text-xs text-sub">Max price (₹)
+            <input type="number" min={0} step={50} value={maxPrice || ''} placeholder="no limit" onChange={(e) => { setMaxPrice(Number(e.target.value) || 0); setPage(1) }} className="num mt-1 block w-28" />
+          </label>
           <label className="text-xs text-sub">Search
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Symbol or name" className="mt-1 block w-48" />
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 self-center rounded-lg border border-line-strong px-3 py-2 text-[13px] font-medium text-sub">
+            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} className="size-4 accent-[#16345c]" />
+            Live prices <span className="text-xs font-normal text-mute">(delayed, like Google)</span>
+            {live && lq.isFetching && <span className="text-xs text-mute">…</span>}
           </label>
           <p className="max-w-md text-xs text-mute">Turnover = 20-day average traded value. Below ~₹1 Cr/day it can be hard to exit; raise it for safety.</p>
         </div>
@@ -148,7 +172,7 @@ export default function Screener() {
       </div>
 
       <div className="card mt-4 overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-[13.5px]">
+        <table className="w-full min-w-[1200px] text-[13.5px]">
           <thead><tr className="border-b border-line">
             {head('symbol', 'Stock', false)}
             {head('ratingScore', 'Tomorrow rating', false)}
@@ -161,7 +185,7 @@ export default function Screener() {
             {head('npos', 'Up in')}
           </tr></thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={15} className="px-3 py-10 text-center text-mute">No stocks match. Untick a horizon or lower the turnover filter.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={16} className="px-3 py-10 text-center text-mute">No stocks match. Untick a horizon or lower the turnover filter.</td></tr>}
             {pageRows.map((r: ScreenerRow & { npos: number; ratingScore: number }) => (
               <tr key={r.symbol} className="border-b border-line hover:bg-soft/70">
                 <td className="px-3 py-2"><Link to={`/stock/${r.symbol}`} className="font-semibold hover:text-brand">{r.symbol}</Link></td>
@@ -187,11 +211,11 @@ export default function Screener() {
                   ) : <span className="text-mute" title="Not in the model's liquid universe (turnover below ₹5 Cr/day)">-</span>}
                 </td>
                 <td className="px-3 py-2 text-sub">{r.sector === 'Defence' || r.sector === 'Engineering' ? <Chip tone={r.sector === 'Defence' ? 'gold' : 'blue'}>{r.sector}</Chip> : r.sector}</td>
-                <td className="num px-3 py-2 text-right">₹{inr(r.close)}</td>
-                {cell(r.chg1)}
-                {HZ.map((h) => <td key={h.k} className={clsx('num px-3 py-2 text-right', tone(r[h.k]), req.includes(h.k) && 'bg-pos-bg/40')}>{r[h.k] == null ? '-' : pctRaw(r[h.k] as number, 1)}</td>)}
+                <td className="num px-3 py-2 text-right">₹{inr(view(r).price)}{view(r).live && <span className="ml-1 rounded bg-blue-bg px-1 text-[9.5px] font-semibold text-blue">LIVE</span>}</td>
+                {cell(view(r).chg1)}
+                {HZ.map((h) => { const v = view(r).ret(h.k); return <td key={h.k} className={clsx('num px-3 py-2 text-right', tone(v), req.includes(h.k) && 'bg-pos-bg/40')}>{v == null ? '-' : pctRaw(v, 1)}</td> })}
                 <td className="num px-3 py-2 text-right text-sub">₹{r.turnoverCr} Cr</td>
-                <td className="num px-3 py-2 text-right font-medium">{r.npos}/7</td>
+                <td className="num px-3 py-2 text-right font-medium">{r.npos}/{HZ.length}</td>
               </tr>
             ))}
           </tbody>
@@ -221,7 +245,7 @@ export default function Screener() {
       </div>
 
       <div className="card mt-5 border-amber/30 p-4 text-[13px] leading-relaxed text-sub">
-        <b className="text-ink">Tomorrow rating</b>: grade A/B/C/D = the model's rank percentile (A = top 5%, B = top 15%, C = top 40%); a tag (Elite / Top pick / Priority pick) means it is on tomorrow's published list; "Not eligible" means it fails a pick rule (price band, up over 10 sessions, or vetoed) — hover for the reason. <b className="text-ink">Buy rank</b> is the model's position (1 = best) among ~1,000 liquid stocks as of {data.rankAsOf ?? 'the last run'}; it is the same ranking behind the Tomorrow and Elite picks. <b className="text-ink">Use the rest as a shortlist filter, not a prediction.</b> In our backtest, stocks positive over 5D–6M did only slightly better over the next 10 days than the average stock
+        <b className="text-ink">Tomorrow rating</b>: grade A/B/C/D = the model's rank percentile (A = top 5%, B = top 15%, C = top 40%); a tag (Elite / Top pick / Priority pick) means it is on tomorrow's published list; "Not eligible" means it fails a pick rule (price band, up over 10 sessions, or vetoed) — hover for the reason. <b className="text-ink">Buy rank</b> is the model's position (1 = best) among ~1,000 liquid stocks as of {data.rankAsOf ?? 'the last run'}; it is the same ranking behind the Tomorrow and Elite picks. <b className="text-ink">Live prices</b> recompute the visible rows from the delayed intraday price; the filters always use the official NSE close. <b className="text-ink">Use the rest as a shortlist filter, not a prediction.</b> In our backtest, stocks positive over 1W–6M did only slightly better over the next 10 days than the average stock
         (about +0.6% vs +0.4%, coin-flip hit rate). Lower-priced stocks (₹50–150) swing more — bigger gains and bigger losses — and are more prone to circuits, so check the stock page for its lower-circuit history,
         fundamentals and news before acting. Weekly picks in <b className="text-ink">Tomorrow</b> and <b className="text-ink">Elite 3</b> add the model score, stop-loss and targets.
       </div>
