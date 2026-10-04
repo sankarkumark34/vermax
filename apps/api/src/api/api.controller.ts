@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { NotifyService } from '../notify/notify.service.js';
 import { SchedulerService } from '../scheduler/scheduler.service.js';
 import { purchaseRating } from '../ipo/rating.js';
+import { analyse as scoreAnalysis } from '../analysis/score.js';
 import { QuoteService } from '../quote/quote.service.js';
 import { CircuitService } from '../circuit/circuit.service.js';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
@@ -250,6 +251,78 @@ export class ApiController {
       batch.forEach((q, j) => (out[list[i + j]] = q));
     }
     return out;
+  }
+
+  // ---- stock analysis -----------------------------------------------------------------------------
+  private searchIndex: { at: number; rows: { symbol: string; name: string; kind: 'stock' | 'ipo' }[] } | null = null;
+
+  /** Symbol / company-name search across listed stocks and NSE IPOs (including ones not listed yet). */
+  @Get('search')
+  async search(@Query('q') q = '') {
+    const STOP = new Set(['LTD', 'LTD.', 'LIMITED', 'IPO', 'THE', 'AND', '&', 'CO', 'CO.']);
+    const norm = (x: string) => x.toUpperCase().replace(/[().,]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w));
+    const words = norm(q);
+    const term = words.join(' ');
+    if (term.length < 2) return [];
+    if (!this.searchIndex || Date.now() - this.searchIndex.at > 3600_000) {
+      const stocks: { symbol: string; name: string | null }[] = await this.ds.query(
+        `SELECT s.symbol, s.name FROM stocks s WHERE s."lastDate" >= date('now', '-30 day')`,
+      );
+      const rows: { symbol: string; name: string; kind: 'stock' | 'ipo' }[] = stocks.map((r) => ({ symbol: r.symbol, name: r.name ?? r.symbol, kind: 'stock' as const }));
+      const ipoFile = path.join(this.cfg.repoRoot, 'data', 'cache', 'universe', 'ipo_past_issues.json');
+      if (fs.existsSync(ipoFile)) {
+        const known = new Set(rows.map((r) => r.symbol));
+        for (const x of JSON.parse(fs.readFileSync(ipoFile, 'utf8')) as Record<string, string>[]) {
+          const sym = (x.symbol ?? '').trim();
+          if (sym && !known.has(sym) && ['EQ', 'BE'].includes(x.securityType)) { rows.push({ symbol: sym, name: x.companyName ?? x.company ?? sym, kind: 'ipo' }); known.add(sym); }
+        }
+      }
+      this.searchIndex = { at: Date.now(), rows };
+    }
+    const scored = this.searchIndex.rows
+      .map((r) => {
+        const n = norm(r.name).join(' ');
+        let s = 0;
+        const compact = words.join('');
+        if (r.symbol === compact) s = 100;
+        else if (r.symbol.startsWith(compact)) s = 80;
+        else if (words.every((w) => n.includes(w))) s = 60 + (n.startsWith(words[0]) ? 10 : 0);
+        else if (r.symbol.includes(compact)) s = 40;
+        return { ...r, s };
+      })
+      .filter((r) => r.s > 0)
+      .sort((a, b) => b.s - a.s || a.name.length - b.name.length)
+      .slice(0, 10);
+    return scored.map(({ s: _s, ...r }) => r);
+  }
+
+  private analysisCache = new Map<string, { at: number; data: unknown }>();
+
+  /** Full checklist + Buy score for one stock or IPO. */
+  @Get('analyse/:symbol')
+  async analyseStock(@Param('symbol') raw: string, @Query('refresh') refresh?: string) {
+    const symbol = raw.toUpperCase();
+    if (!SYMBOL.test(symbol)) throw new BadRequestException('bad symbol');
+    const hit = this.analysisCache.get(symbol);
+    if (!refresh && hit && Date.now() - hit.at < 30 * 60_000) return hit.data;
+    const base = await this.bridge.run<Record<string, any>>('analyse', { symbol }, 5 * 60_000);
+    if (base.status === 'unknown') throw new NotFoundException(`No NSE data or IPO record for ${symbol}`);
+    const [sent, circ, quote] = await Promise.all([
+      this.sentiment.analyse(symbol, base.name ?? null),
+      base.status === 'listed' ? this.circuits.forSymbol(symbol) : Promise.resolve(null),
+      base.status === 'listed' ? this.quotes.get(symbol) : Promise.resolve(null),
+    ]);
+    const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    const score = scoreAnalysis({
+      status: base.status, sector: base.sector ?? null, price: base.price, fundamentals: base.fundamentals, industry: base.industry, ipo: base.ipo,
+      sentiment: { score: sent.score, headlines: sent.headlines, severe: sent.severe },
+      circuitEventsLast12m: circ ? circ.list.filter((e) => e.endDate >= yearAgo).length : null,
+      lockedNow: circ?.lockedNow ?? false,
+      today: new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10),
+    });
+    const data = { ...base, quote, sentiment: { score: sent.score, label: sent.label, severe: sent.severe, headlines: sent.headlines, items: sent.items.slice(0, 5) }, analysis: score };
+    this.analysisCache.set(symbol, { at: Date.now(), data });
+    return data;
   }
 
   // ---- single stock --------------------------------------------------------------------------

@@ -49,11 +49,13 @@ body {
 .label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-mute); }
 h1, h2 { letter-spacing: -0.02em; }
 .num { letter-spacing: -0.01em; }
-input, select {
-  background: #fff; border: 1px solid var(--color-line-strong); border-radius: 8px; padding: 6px 10px;
-  color: var(--color-ink); outline: none; font-size: 13.5px;
+@layer base {
+  input, select {
+    background: #fff; border: 1px solid var(--color-line-strong); border-radius: 8px; padding: 6px 10px;
+    color: var(--color-ink); outline: none; font-size: 13.5px;
+  }
+  input:focus, select:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(22, 52, 92, 0.12); }
 }
-input:focus, select:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(22, 52, 92, 0.12); }
 button { cursor: pointer; }
 table th { font-weight: 500; }
 ::-webkit-scrollbar { height: 8px; width: 8px; }

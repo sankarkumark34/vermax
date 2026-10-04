@@ -43,14 +43,18 @@ def _cagr(series):
     return (vals[0] / vals[-1]) ** (1 / (len(vals) - 1)) - 1
 
 
-def fetch(symbol: str, sector: str | None = None, force: bool = False) -> dict:
+SCHEMA = 2   # bump when fields are added; older cache entries are refetched when a caller needs the full set
+
+
+def fetch(symbol: str, sector: str | None = None, force: bool = False, full: bool = False) -> dict:
     p = CACHE / f"{symbol}.json"
     if p.exists() and not force:
         d = json.loads(p.read_text())
-        if datetime.fromisoformat(d["fetchedAt"]) > datetime.utcnow() - timedelta(hours=TTL_HOURS):
+        fresh = datetime.fromisoformat(d["fetchedAt"]) > datetime.utcnow() - timedelta(hours=TTL_HOURS)
+        if fresh and (not full or d.get("schema") == SCHEMA):
             d.update(assess(d, sector))          # re-apply current rules to cached raw data
             return d
-    out = {"symbol": symbol, "fetchedAt": datetime.utcnow().isoformat(), "ok": False}
+    out = {"symbol": symbol, "fetchedAt": datetime.utcnow().isoformat(), "ok": False, "schema": SCHEMA}
     try:
         import yfinance as yf
         t = yf.Ticker(f"{symbol}.NS")
@@ -80,6 +84,11 @@ def fetch(symbol: str, sector: str | None = None, force: bool = False) -> dict:
             de = _f(debt.iloc[0]) / _f(eq.iloc[0])
         if de is None and _f(info.get("debtToEquity")) is not None:
             de = _f(info["debtToEquity"]) / 100.0
+        interest = _row(inc, "Interest Expense", "Interest Expense Non Operating")
+        icov = None
+        if ebit is not None and interest is not None and len(interest) and _f(interest.iloc[0]):
+            iv = abs(_f(interest.iloc[0]))
+            icov = (_f(ebit.iloc[0]) / iv) if iv and _f(ebit.iloc[0]) is not None else None
         earn = None
         try:
             cal = t.calendar or {}
@@ -106,6 +115,10 @@ def fetch(symbol: str, sector: str | None = None, force: bool = False) -> dict:
             "pe": _f(info.get("trailingPE")), "pb": _f(info.get("priceToBook")),
             "netIncomePositive": (_f(ni.iloc[0]) or 0) > 0 if ni is not None and len(ni) else None,
             "nextEarnings": earn,
+            "operatingMargin": _f(info.get("operatingMargins")), "currentRatio": _f(info.get("currentRatio")),
+            "interestCoverage": icov, "beta": _f(info.get("beta")), "dividendYield": _f(info.get("dividendYield")),
+            "revenueCr": round(_f(rev.iloc[0]) / 1e7) if rev is not None and len(rev) and _f(rev.iloc[0]) else None,
+            "statementYears": int(len(rev)) if rev is not None else 0,
         })
     except Exception as e:  # noqa: BLE001
         out["error"] = f"{type(e).__name__}: {e}"[:200]

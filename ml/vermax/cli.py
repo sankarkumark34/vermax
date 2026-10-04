@@ -50,6 +50,9 @@ def main(argv: list[str]) -> None:
         path = dest / f"ipo-quality-{out['months']}m-{out['asOf']}.json"
         path.write_text(json.dumps(out, default=str))
         out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "analyse":
+        from .analyse import analyse
+        out = analyse(args["symbol"])
     elif cmd == "health":
         from .health import health
         out = health()
@@ -60,7 +63,7 @@ def main(argv: list[str]) -> None:
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
-        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "ipo-quality", "health", "derivs"]}
+        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "ipo-quality", "analyse", "health", "derivs"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 
