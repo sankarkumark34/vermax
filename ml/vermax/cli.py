@@ -59,11 +59,24 @@ def main(argv: list[str]) -> None:
     elif cmd == "derivs":
         from .derivs import backfill
         out = backfill(**args)
+    elif cmd == "company":
+        from .company import company
+        out = company(args["symbol"], force=bool(args.get("force")))
+    elif cmd == "company-batch":
+        from .company import company_batch
+        out = company_batch(args["symbols"], force=bool(args.get("force")))
+    elif cmd == "sector-medians":
+        from .company import sector_medians
+        out = sector_medians()
+    elif cmd == "surveillance":
+        from .company import surveillance
+        out = surveillance()
     elif cmd == "fundamentals":
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
-        out = {"commands": ["train", "score", "track", "fundamentals", "ipos", "ipo-quality", "analyse", "ipo-study", "health", "derivs"]}
+        out = {"commands": ["train", "score", "track", "fundamentals", "ipos", "ipo-quality", "analyse", "ipo-study", "health", "derivs",
+                            "company", "company-batch", "sector-medians", "surveillance"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 

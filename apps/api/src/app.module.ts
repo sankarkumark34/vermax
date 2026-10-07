@@ -10,10 +10,15 @@ import { NotifyService } from './notify/notify.service.js';
 import { PicksService } from './picks/picks.service.js';
 import { SchedulerService } from './scheduler/scheduler.service.js';
 import { SentimentService } from './sentiment/sentiment.service.js';
+import { LlmClientService } from './selection/llm-client.service.js';
+import { PortfolioService } from './selection/portfolio.service.js';
+import { SelectionController } from './selection/selection.controller.js';
+import { SelectionService } from './selection/selection.service.js';
 
 @Module({
   imports: [ScheduleModule.forRoot(), DatabaseModule, DataModule],
-  controllers: [ApiController],
-  providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, PicksService, SchedulerService],
+  controllers: [ApiController, SelectionController],
+  providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, PicksService, SchedulerService,
+    SelectionService, PortfolioService, LlmClientService],
 })
 export class AppModule {}

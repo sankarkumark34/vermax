@@ -20,3 +20,8 @@ data/picks/
 data/*.log
 data/screener/
 scripts/.env.cmd
+.venv/
+data/company/
+data/llm-cache/
+.pytest_cache/
+*.egg-info/

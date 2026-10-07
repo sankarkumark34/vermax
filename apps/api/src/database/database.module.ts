@@ -8,8 +8,9 @@ import { IndexBarEntity } from './entities/index-bar.entity.js';
 import { IngestLogEntity } from './entities/ingest-log.entity.js';
 import { PickRunEntity } from './entities/pick-run.entity.js';
 import { StockEntity } from './entities/stock.entity.js';
+import { SELECTION_ENTITIES } from '../selection/entities.js';
 
-export const ENTITIES = [StockEntity, DailyBarEntity, IndexBarEntity, IngestLogEntity, PickRunEntity];
+export const ENTITIES = [StockEntity, DailyBarEntity, IndexBarEntity, IngestLogEntity, PickRunEntity, ...SELECTION_ENTITIES];
 
 @Global()
 @Module({

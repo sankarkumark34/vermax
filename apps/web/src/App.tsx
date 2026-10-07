@@ -1,21 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, ChartNoAxesCombined, ScanSearch, Rocket, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { BadgeCheck, Calculator, ChartNoAxesCombined, Eye, Flag, ListFilter, ScanSearch, Rocket, Loader2, RefreshCw, Search, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Route, Routes, useNavigate } from 'react-router'
 import { api } from './lib/api'
 import Analyse from './pages/Analyse'
+import Flags from './pages/Flags'
 import IpoStocks from './pages/IpoStocks'
 import IpoStudy from './pages/IpoStudy'
 import Ipos from './pages/Ipos'
+import Risk from './pages/Risk'
+import Screener from './pages/Screener'
+import Settings from './pages/Settings'
 import Stock from './pages/Stock'
 import Today from './pages/Today'
+import VerdictPage from './pages/Verdict'
+import Watchlist from './pages/Watchlist'
 
 const nav = [
   { to: '/', label: 'Tomorrow', icon: Sparkles },
+  { to: '/screener', label: 'Screener', icon: ListFilter },
+  { to: '/watchlist', label: 'Watchlist', icon: Eye },
+  { to: '/risk', label: 'Risk & Portfolio', icon: Calculator },
+  { to: '/flags', label: 'Red flags', icon: Flag },
   { to: '/analyse', label: 'Stock Analysis', icon: ScanSearch },
   { to: '/ipo-stocks', label: 'IPO Stocks', icon: BadgeCheck },
   { to: '/ipos', label: 'IPO Screener', icon: Rocket },
   { to: '/ipo-study', label: 'IPO Study', icon: ChartNoAxesCombined },
+  { to: '/settings', label: 'Settings', icon: SlidersHorizontal },
 ]
 
 function PipelineButton() {
@@ -61,7 +72,7 @@ function SymbolSearch() {
   const [q, setQ] = useState('')
   const go = useNavigate()
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) { go(`/stock/${q.trim().toUpperCase()}`); setQ('') } }} className="relative">
+    <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) { go(`/verdict/${q.trim().toUpperCase()}`); setQ('') } }} className="relative">
       <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-mute" />
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol" className="w-full pl-8" />
     </form>
@@ -109,6 +120,12 @@ export default function App() {
             <Route path="/ipos" element={<Ipos />} />
             <Route path="/ipo-study" element={<IpoStudy />} />
             <Route path="/stock/:symbol" element={<Stock />} />
+            <Route path="/screener" element={<Screener />} />
+            <Route path="/verdict/:symbol" element={<VerdictPage />} />
+            <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/risk" element={<Risk />} />
+            <Route path="/flags" element={<Flags />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
       </main>

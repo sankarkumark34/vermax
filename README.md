@@ -4,9 +4,10 @@ Daily "what to buy tomorrow" list for Indian equities: **stop-loss, two targets,
 **Defence & Engineering (incl. AI / data-centre infra) priority**, fundamentals + news overlays, IPO screeners. Holding period ≤ 10 trading days.
 
 ```
-apps/api   NestJS (port 4100)  ingest NSE data · pipeline · sentiment · alerts · scheduler · REST · serves the built UI
-ml/        Python (LightGBM)   features · walk-forward research · blend model · scorer · fundamentals · screeners · health
-apps/web   React + Vite        Tomorrow · Stock Analysis · IPO Stocks · IPO Screener · IPO Study · Stock
+apps/api      NestJS (port 4100)  ingest NSE data · pipeline · 18-step selection engine (/api/v1) · sentiment · alerts · scheduler · serves the UI
+ml/           Python (LightGBM)   features · walk-forward research · blend model · scorer · fundamentals · company data · screeners · health
+services/llm  Python FastAPI      optional LLM service (port 8100): verdict explanations · filing classification · business summaries
+apps/web      React + Vite        Tomorrow · Screener · Watchlist · Risk & Portfolio · Red flags · Stock Analysis · IPO pages · Settings
 scripts/   start-vermax.cmd (auto-restart supervisor) · install/uninstall-autostart.cmd · .env.example.cmd
 data/      market.sqlite (NSE EOD since 2019) · derivs.sqlite (FII/F&O OI) · picks/ · models/ · research/ · screener/
 docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf
@@ -26,10 +27,43 @@ docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf
    Size = **0.5% risk** ÷ stop distance (max 20% per stock; halved when Nifty < 200-DMA).
 7. **Publish & track**: run stored, every pick paper-traded with the same rules; Telegram summary (optional); screener/IPO caches refreshed.
 
+## Stock selection: 18-step BUY / WAIT / AVOID (weekdays 19:30 IST)
+
+Implements the *Stock Selection Platform* proposal on Vermax's stack (SQLite + TypeORM instead of MySQL + Prisma).
+Every liquid NSE stock (50-day traded value ≥ ₹5 Cr, up to 800) runs through a fixed pipeline:
+
+| Phase | Steps (weight) |
+|---|---|
+| A. Understand | 1 Business (4) · 2 Industry (6) |
+| B. Financial strength | 3 Revenue (10) · 4 Profit (8) · 5 Margins (7) · 6 Cash flow (12) · 7 Debt (10) · 8 ROE/ROCE (10) · 9 Working capital (5) |
+| C. Quality and trust | 10 Promoter (6) · 11 Management (4) · 12 Moat (5) |
+| D. Tradability and price | 13 Liquidity (4) · 14 Valuation (7) |
+| E. Events and risk | 15 Catalyst (2) · 16 Red flags (gate / −7 pts) |
+| F. Execution | 17 Technical entry (timing) · 18 Risk and position size |
+
+* **Gates → AVOID** regardless of score: traded value < ₹2 Cr, ASM/GSM surveillance, promoter pledge > 50%, interest cover < 1.5×,
+  negative net worth, 3 years of negative CFO with a profit, any confirmed level-3 red flag.
+* **BUY** = score ≥ 75 + no gate + valuation not stretched + technical entry ready (uptrend, at a level, bullish candle on volume,
+  ≤ 20% above EMA50, reward:risk ≥ 2) + ≥ 70% of the framework had data. **WAIT** otherwise (watch level + alert), **AVOID** < 60.
+* **Sector templates**: banks/NBFCs (ROA/ROE; no debt, cash-flow or working-capital steps), cyclicals, capital-intensive, loss-making.
+* **Position size** = min(risk budget ÷ stop distance, 10%/5% position cap, 1% of daily traded value).
+* Data: NSE bhavcopy/delivery/indices (prices, liquidity), Yahoo Finance statements (4-5 years on the free feed, not 10),
+  NSE shareholding + pledge, NSE announcements (keyword classifier; flags stay *suggested* until you confirm them), NSE ASM/GSM lists.
+* Thresholds, weights and templates are versioned config (Settings screen); every run stores the config version it used.
+* Engine: `apps/api/src/selection/domain` (pure TypeScript, unit-tested); data layer: `ml/vermax/company.py`.
+
+API (`/api/v1`, Swagger at `/docs`): `GET screener`, `GET stocks/:symbol/analysis|technical|prices|history`, `POST stocks/:symbol/explain`,
+`POST risk/position-size`, `GET|POST|DELETE watchlist`, `portfolio/positions`, `GET portfolio/risk`, `GET|PATCH flags`,
+`GET|PUT config/thresholds` (+ `versions`, `activate`), `POST selection/run`, `GET selection/state`, `GET jobs`.
+
 ## Screens
-* **Screener** — stocks positive over every chosen period: 1W/2W/3W/4W (5/10/15/20 sessions), 1M/3M/6M/1Y (calendar months,
-  Google convention), multi-select price ranges, max price (default ₹600), buy rank, Tomorrow rating, ETFs excluded,
-  **Live prices** toggle (delayed quote with live-anchored reference prices so returns match Google intraday).
+* **Screener** — latest verdict for every analysed stock; filter by verdict, minimum score, sector, traded value, entry-ready; Run analysis.
+* **Verdict** (`/verdict/:symbol`, sidebar search) — verdict and score first, gates and red flags, plain-language explanation,
+  price chart with entry/stop/target/watch level, entry checklist, position size, 18-step scorecard by phase, catalysts, history.
+* **Watchlist** — WAIT stocks with alert level and distance; Telegram alert when one turns BUY or reaches its level.
+* **Risk & Portfolio** — position-size calculator (risk / cap / liquidity) and open positions against sector and open-risk limits.
+* **Red flags** — review queue for flags suggested from filings (confirm → applies, dismiss → ignored), plus manual flags.
+* **Settings** — weights, gates, thresholds, risk limits, sector templates, version history.
 * **IPOs** — main-board listings from the NSE equity master (official listing date): listing price, since-listing return,
   every period available since listing, from-high, live prices.
 * **Stock** — NSE close + delayed live price, chart (5D–1Y, EMA/DMA/volume), lower-circuit recovery history, fundamentals, news.
@@ -62,12 +96,26 @@ Alerts: copy `scripts/.env.example.cmd` to `scripts/.env.cmd`, set `TELEGRAM_BOT
 `POST /api/system/test-alert`. You get the daily picks, pipeline failures, missing-data warnings, retrain results and model-health warnings.
 
 Monitoring: `GET /api/system` (data freshness, next jobs, alerts) and `GET /api/model/health` (live rank-IC of published rankings,
-monthly out-of-sample IC, input drift) — also shown on the Backtest page and the sidebar.
+monthly out-of-sample IC, input drift).
+
+LLM service (optional; without it the Verdict page shows a deterministic explanation built from the engine's numbers):
+
+```bash
+cd services/llm && python -m venv .venv && .venv\Scripts\pip install -e ".[dev]"
+set ANTHROPIC_API_KEY=...                     # or `ant auth login`
+npm run dev:llm                               # http://127.0.0.1:8100 ; tests: npm run test:llm (no network)
+```
+
+It uses Claude (`LLM_MODEL`, default `claude-opus-5-5`) for language tasks only: structured (Pydantic) output, a numeric-grounding
+check (every figure must come from the engine output; retried once, then rejected), citation checks on summaries, filings treated
+as untrusted data, versioned prompts, results cached by content hash. Set `LLM_SERVICE_TOKEN` on both sides to require a bearer token.
 
 Research: `python -m vermax.xsection` → `python -m vermax.report` (docs/BACKTEST.md); `python -m vermax.experiments [derivs]`.
 
 Config via env: `PICKS_MIN_PRICE/MAX_PRICE` (200/650), `CAPITAL`, `RISK_PER_TRADE` (0.005), `PORT`, `PYTHON_BIN`,
-`DAILY_CRON`, `RETRY_CRON`, `WATCHDOG_CRON`, `RETRAIN_CRON`, `SCHEDULER_ENABLED`, `TELEGRAM_*`.
+`DAILY_CRON`, `RETRY_CRON`, `WATCHDOG_CRON`, `RETRAIN_CRON`, `SELECTION_CRON` (`30 19 * * 1-5`), `SCHEDULER_ENABLED`, `TELEGRAM_*`,
+`LLM_SERVICE_URL` (`http://127.0.0.1:8100`), `LLM_SERVICE_TOKEN`.
 
 ## Not financial advice
-Statistical decision support. Publishing these picks to others requires SEBI Research Analyst registration in India.
+Statistical and rules-based decision support for personal use. Publishing these picks or verdicts to others requires SEBI Research
+Analyst / Investment Adviser registration in India. Check each data source's terms before automated use beyond a personal prototype.
