@@ -7,5 +7,5 @@ if exist "%~dp0.env.cmd" call "%~dp0.env.cmd"
 echo [%date% %time%] starting Vermax >> data\vermax.log
 node apps\api\dist\main.js >> data\vermax.log 2>&1
 echo [%date% %time%] Vermax exited (code %errorlevel%), restarting in 15s >> data\vermax.log
-timeout /t 15 /nobreak > nul
+ping -n 16 127.0.0.1 > nul
 goto loop

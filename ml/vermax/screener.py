@@ -60,6 +60,11 @@ def _period_refs(sym_df: pd.DataFrame, last_dt: pd.Timestamp, live: bool = False
     return out
 
 
+def seasoned(first_date: pd.Timestamp, last_dt: pd.Timestamp, months: int = config.MIN_LIST_MONTHS) -> bool:
+    """True when the first NSE session is at least `months` calendar months before the latest session."""
+    return pd.Timestamp(first_date) <= last_dt - pd.DateOffset(months=months)
+
+
 def _rows(df: pd.DataFrame, latest: str) -> list[dict]:
     last_dt = pd.Timestamp(latest)
     stocks = load_stocks().set_index("symbol")
@@ -83,18 +88,6 @@ def _rows(df: pd.DataFrame, latest: str) -> list[dict]:
             rec[k] = _r((last.close / ref - 1) * 100) if ref else None
         rows.append(rec)
     return rows
-
-
-def screen(min_turnover_cr: float = 0.5, min_price: float = 20.0) -> dict:
-    with _con() as c:
-        latest = c.execute("SELECT MAX(date) FROM daily_bars").fetchone()[0]
-    start = (pd.Timestamp(latest) - pd.Timedelta(days=430)).date().isoformat()
-    df = load_bars(start)
-    equities = set(listing_master().symbol)          # NSE equity master: excludes ETFs, liquid funds, REITs
-    df = df[df.symbol.isin(equities)]
-    rows = [r for r in _rows(df, latest) if r["close"] and r["close"] >= min_price and (r["turnoverCr"] or 0) >= min_turnover_cr]
-    return {"asOf": latest, "liveSession": _next_session(pd.Timestamp(latest)).date().isoformat(),
-            "generatedAt": datetime.now(timezone.utc).isoformat(), "count": len(rows), "horizons": HORIZONS, "rows": rows}
 
 
 def listing_master() -> pd.DataFrame:
@@ -150,10 +143,13 @@ def ipos(months: int = 36) -> dict:
     recent = m[(m.listed >= cutoff) & (m.listed <= last_dt)]
     df = load_bars((cutoff - pd.Timedelta(days=5)).date().isoformat())
     df = df[df.symbol.isin(set(recent.symbol))]
-    rows = []
+    rows, young = [], 0
     for rec_l in recent.itertuples():
         g = df[(df.symbol == rec_l.symbol) & (df.date >= rec_l.listed)].sort_values("date")   # ignore pre-listing rows
         if g.empty or g["date"].iloc[-1] != last_dt:
+            continue
+        if not seasoned(g["date"].iloc[0], last_dt):
+            young += 1
             continue
         r = _rows(g, latest)[0]
         first = g.iloc[0]
@@ -169,4 +165,5 @@ def ipos(months: int = 36) -> dict:
         rows.append(r)
     rows.sort(key=lambda x: x["listingDate"], reverse=True)
     return {"asOf": latest, "liveSession": _next_session(last_dt).date().isoformat(),
-            "generatedAt": datetime.now(timezone.utc).isoformat(), "count": len(rows), "months": months, "rows": rows}
+            "generatedAt": datetime.now(timezone.utc).isoformat(), "count": len(rows), "months": months,
+            "minMonths": config.MIN_LIST_MONTHS, "excludedYoung": young, "rows": rows}

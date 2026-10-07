@@ -13,7 +13,6 @@ function WhyPopover({ p, roe }: { p: Pick; roe: number | null | undefined }) {
     `Price ₹${inr(p.close)} is inside your ₹200–650 band`,
     'Up over the last 2 weeks (10 sessions)',
     p.sectorRank != null ? `Sector strength: ${Math.round(p.sectorRank * 100)}th percentile of all sectors` : 'Sector strength measured',
-    ...(p.list === 'elite' ? ['Uptrend: above 50-EMA and 200-DMA, up over 20 days'] : []),
     ...(f?.ok ? [`Fundamentals ${f.verdict.toLowerCase()} (quality ${f.qualityScore}/100${roe != null ? `, ROE ${pct(roe, 0)}` : ''})`] : ['Fundamentals could not be verified']),
     n ? `News ${n.label.toLowerCase()}, no red flags` : 'News not checked',
   ]

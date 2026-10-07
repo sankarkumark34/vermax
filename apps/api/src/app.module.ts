@@ -5,7 +5,6 @@ import { PythonBridgeService } from './bridge/python-bridge.service.js';
 import { CircuitService } from './circuit/circuit.service.js';
 import { DataModule } from './data/data.module.js';
 import { DatabaseModule } from './database/database.module.js';
-import { JournalService } from './journal/journal.service.js';
 import { QuoteService } from './quote/quote.service.js';
 import { NotifyService } from './notify/notify.service.js';
 import { PicksService } from './picks/picks.service.js';
@@ -15,6 +14,6 @@ import { SentimentService } from './sentiment/sentiment.service.js';
 @Module({
   imports: [ScheduleModule.forRoot(), DatabaseModule, DataModule],
   controllers: [ApiController],
-  providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, JournalService, PicksService, SchedulerService],
+  providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, PicksService, SchedulerService],
 })
 export class AppModule {}

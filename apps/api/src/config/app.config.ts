@@ -15,7 +15,6 @@ export interface AppConfig {
   sqlitePath: string;
   cacheDir: string;
   picksDir: string;
-  researchDir: string;
   mlDir: string;
   pythonBin: string;
   requestDelayMs: number;
@@ -32,7 +31,6 @@ export function loadConfig(): AppConfig {
     sqlitePath: e.VERMAX_DB ?? path.join(repoRoot, 'data', 'market.sqlite'),
     cacheDir: e.DATA_CACHE_DIR ?? path.join(repoRoot, 'data', 'cache'),
     picksDir: path.join(repoRoot, 'data', 'picks'),
-    researchDir: path.join(repoRoot, 'data', 'research'),
     mlDir: path.join(repoRoot, 'ml'),
     pythonBin: e.PYTHON_BIN ?? 'python',
     requestDelayMs: num(e.NSE_REQUEST_DELAY_MS, 400),

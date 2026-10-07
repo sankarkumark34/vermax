@@ -6,11 +6,10 @@ import { loadConfig } from '../config/app.config.js';
 import { DailyBarEntity } from './entities/daily-bar.entity.js';
 import { IndexBarEntity } from './entities/index-bar.entity.js';
 import { IngestLogEntity } from './entities/ingest-log.entity.js';
-import { PickEntity } from './entities/pick.entity.js';
 import { PickRunEntity } from './entities/pick-run.entity.js';
 import { StockEntity } from './entities/stock.entity.js';
 
-export const ENTITIES = [StockEntity, DailyBarEntity, IndexBarEntity, IngestLogEntity, PickRunEntity, PickEntity];
+export const ENTITIES = [StockEntity, DailyBarEntity, IndexBarEntity, IngestLogEntity, PickRunEntity];
 
 @Global()
 @Module({

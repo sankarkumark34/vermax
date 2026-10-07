@@ -3,7 +3,10 @@ import clsx from 'clsx'
 import { AlertTriangle, Check, Minus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import IpoJourney, { type JourneyPair } from '../components/IpoJourney'
+import TechnicalsCard from '../components/TechnicalsCard'
 import { Chip, ErrorBox, Loading } from '../components/ui'
+import type { Technicals } from '../lib/types'
 import { inr, pctRaw, tone } from '../lib/format'
 
 interface CheckRow { id: string; group: string; label: string; value: string; standard: string; pass: boolean | null; note?: string }
@@ -20,9 +23,11 @@ interface Resp {
   fundamentals?: { marketCapCr?: number | null; industry?: string | null; statementYears?: number }
   ipo?: {
     company: string; issuePrice: number | null; priceRange: string | null; ipoStart: string | null; ipoEnd: string | null; listingDate: string | null; recent?: boolean
+    journey?: JourneyPair | null
     listingGain?: number | null; vsIssue?: number | null; subscription?: { qib: number | null; nii: number | null; retail: number | null; total: number | null } | null
   } | null
   sentiment?: { label: string; headlines: number; items: { title: string; link: string; source: string | null }[] }
+  technicals?: Technicals | null
   analysis: Analysis
 }
 
@@ -170,6 +175,10 @@ function Result({ d }: { d: Resp }) {
           </div>
         </div>
       )}
+
+      {d.technicals && <TechnicalsCard t={d.technicals} />}
+
+      {ipo?.journey && <IpoJourney journey={ipo.journey} qib={ipo.subscription?.qib} />}
 
       {ipo && (ipo.recent || !listed) && (
         <div className="card p-5">

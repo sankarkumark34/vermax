@@ -1,29 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, BookOpen, ScanSearch, Crown, ListFilter, Rocket, FlaskConical, Layers, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { BadgeCheck, ChartNoAxesCombined, ScanSearch, Rocket, Loader2, RefreshCw, Search, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Route, Routes, useNavigate } from 'react-router'
 import { api } from './lib/api'
 import Analyse from './pages/Analyse'
-import Elite from './pages/Elite'
 import IpoStocks from './pages/IpoStocks'
+import IpoStudy from './pages/IpoStudy'
 import Ipos from './pages/Ipos'
-import Journal from './pages/Journal'
-import Performance from './pages/Performance'
-import Sectors from './pages/Sectors'
-import Screener from './pages/Screener'
 import Stock from './pages/Stock'
 import Today from './pages/Today'
 
 const nav = [
   { to: '/', label: 'Tomorrow', icon: Sparkles },
   { to: '/analyse', label: 'Stock Analysis', icon: ScanSearch },
-  { to: '/elite', label: 'Elite 3', icon: Crown },
-  { to: '/screener', label: 'Screener', icon: ListFilter },
   { to: '/ipo-stocks', label: 'IPO Stocks', icon: BadgeCheck },
   { to: '/ipos', label: 'IPO Screener', icon: Rocket },
-  { to: '/sectors', label: 'Sectors', icon: Layers },
-  { to: '/journal', label: 'Journal', icon: BookOpen },
-  { to: '/performance', label: 'Backtest', icon: FlaskConical },
+  { to: '/ipo-study', label: 'IPO Study', icon: ChartNoAxesCombined },
 ]
 
 function PipelineButton() {
@@ -113,13 +105,9 @@ export default function App() {
             <Route path="/" element={<Today />} />
             <Route path="/analyse" element={<Analyse />} />
             <Route path="/analyse/:symbol" element={<Analyse />} />
-            <Route path="/elite" element={<Elite />} />
-            <Route path="/screener" element={<Screener />} />
             <Route path="/ipo-stocks" element={<IpoStocks />} />
             <Route path="/ipos" element={<Ipos />} />
-            <Route path="/sectors" element={<Sectors />} />
-            <Route path="/journal" element={<Journal />} />
-            <Route path="/performance" element={<Performance />} />
+            <Route path="/ipo-study" element={<IpoStudy />} />
             <Route path="/stock/:symbol" element={<Stock />} />
           </Routes>
         </div>

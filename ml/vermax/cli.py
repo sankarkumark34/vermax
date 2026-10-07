@@ -23,15 +23,6 @@ def main(argv: list[str]) -> None:
     elif cmd == "track":
         from .production import track
         out = track(args["items"])
-    elif cmd == "screener":
-        from .screener import screen
-        from . import config
-        out = screen(**args)
-        dest = config.OUT_DIR.parent / "screener"
-        dest.mkdir(parents=True, exist_ok=True)
-        path = dest / f"{out['asOf']}.json"
-        path.write_text(json.dumps(out))
-        out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
     elif cmd == "ipos":
         from .screener import ipos
         from . import config
@@ -50,6 +41,15 @@ def main(argv: list[str]) -> None:
         path = dest / f"ipo-quality-{out['months']}m-{out['asOf']}.json"
         path.write_text(json.dumps(out, default=str))
         out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "ipo-study":
+        from .ipo_journey import ipo_study
+        from . import config
+        out = ipo_study()
+        dest = config.OUT_DIR.parent / "screener"
+        dest.mkdir(parents=True, exist_ok=True)
+        path = dest / f"ipo-study-{out['asOf']}.json"
+        path.write_text(json.dumps(out, default=str))
+        out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
     elif cmd == "analyse":
         from .analyse import analyse
         out = analyse(args["symbol"])
@@ -63,7 +63,7 @@ def main(argv: list[str]) -> None:
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
-        out = {"commands": ["train", "score", "track", "fundamentals", "screener", "ipos", "ipo-quality", "analyse", "health", "derivs"]}
+        out = {"commands": ["train", "score", "track", "fundamentals", "ipos", "ipo-quality", "analyse", "ipo-study", "health", "derivs"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 

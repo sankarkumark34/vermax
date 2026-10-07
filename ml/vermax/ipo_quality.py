@@ -9,9 +9,10 @@ Week / month logic (official NSE closes, split-adjusted):
 from __future__ import annotations
 from datetime import datetime, timezone
 import pandas as pd
+from . import config
 from .data import _con, load_bars
 from .fundamentals import fetch_many
-from .screener import _r, _rows, ipo_master
+from .screener import _r, _rows, ipo_master, seasoned
 
 
 def _periods(g: pd.DataFrame, freq: str, last_dt: pd.Timestamp) -> dict:
@@ -38,10 +39,13 @@ def ipo_quality(months: int = 6) -> dict:
     recent = m[(m.listed >= last_dt - pd.DateOffset(months=months)) & (m.listed <= last_dt)]
     df = load_bars((last_dt - pd.DateOffset(months=months) - pd.Timedelta(days=5)).date().isoformat())
     df = df[df.symbol.isin(set(recent.symbol))]
-    rows = []
+    rows, young = [], 0
     for rec in recent.itertuples():
         g = df[(df.symbol == rec.symbol) & (df.date >= rec.listed)].sort_values("date")
         if g.empty or g["date"].iloc[-1] != last_dt:
+            continue
+        if not seasoned(g["date"].iloc[0], last_dt):
+            young += 1
             continue
         base = _rows(g, latest)[0]
         first = g.iloc[0]
@@ -64,4 +68,5 @@ def ipo_quality(months: int = 6) -> dict:
                                                   "salesCagr", "profitCagr", "revenueGrowth", "earningsGrowth", "profitMargin", "pe", "marketCapCr",
                                                   "netIncomePositive", "nextEarnings")}
     rows.sort(key=lambda x: x["listingDate"], reverse=True)
-    return {"asOf": latest, "generatedAt": datetime.now(timezone.utc).isoformat(), "months": months, "count": len(rows), "rows": rows}
+    return {"asOf": latest, "generatedAt": datetime.now(timezone.utc).isoformat(), "months": months, "count": len(rows),
+            "minMonths": config.MIN_LIST_MONTHS, "excludedYoung": young, "rows": rows}

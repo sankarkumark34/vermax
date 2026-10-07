@@ -45,21 +45,6 @@ export interface PyPick {
   plan: TradePlan;
 }
 
-export interface PySector {
-  sector: string;
-  isTheme: boolean;
-  stocks: number;
-  rank: number | null;
-  ret5: number;
-  ret20: number;
-  ret60: number;
-  rs20: number;
-  rs60: number;
-  breadth50: number;
-  avgScore: number;
-  top: string[];
-}
-
 export interface PyRegime {
   label: 'BULLISH' | 'PULLBACK' | 'DEFENSIVE';
   sizeMultiplier: number;
@@ -82,8 +67,6 @@ export interface PyScoreFile {
   regime: PyRegime;
   picks: PyPick[];
   themeWatch: PyPick[];
-  elite: PyPick[];
-  sectors: PySector[];
   ranking: { symbol: string; sector: string; score: number; rankScore: number; close: number; changePct: number }[];
   config: { tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number };
 }
@@ -120,7 +103,7 @@ export interface Sizing {
 export type CircuitBrief = Omit<CircuitSummary, 'list'>;
 
 export interface EnrichedPick extends PyPick {
-  list: 'core' | 'theme' | 'elite';
+  list: 'core' | 'theme';
   decision: Decision;
   rejectReasons: string[];
   fundamentals: Fundamentals | null;
@@ -139,8 +122,6 @@ export interface PublishedRun {
   config: PyScoreFile['config'];
   core: EnrichedPick[];
   theme: EnrichedPick[];
-  elite: EnrichedPick[];
   rejected: EnrichedPick[];
-  sectors: PySector[];
   disclaimer: string;
 }

@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
-import { Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, Bar, CartesianGrid, Cell, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { inr, pct, tone } from '../lib/format'
-import type { Bar as PriceBar } from '../lib/types'
+import type { Bar as PriceBar, Technicals } from '../lib/types'
 
 // Session-based short horizons; month horizons are CALENDAR months (same convention as Google Finance).
 const RANGES = [
@@ -11,6 +11,15 @@ const RANGES = [
 ] as const
 const RETURNS = [{ k: '1D', n: 1 }, { k: '5D', n: 5 }, { k: '10D', n: 10 }, { k: '20D', n: 20 }, { k: '1M', m: 1 }, { k: '3M', m: 3 }] as const
 type Span = { n?: number; m?: number }
+
+const OVERLAYS = [
+  ['ema20', 'EMA 20', '#b8791a'], ['ema50', 'EMA 50', '#1c4f94'], ['sma200', 'DMA 200', '#6b3fa0'], ['volume', 'Volume', '#8492a6'],
+] as const
+const STUDIES = [
+  ['fib', 'Fibonacci', '#b8791a'], ['swings', 'Swing H/L', '#3d4b5f'], ['structure', 'BOS / CHoCH', '#1c4f94'], ['fvg', 'FVG', '#0a7a52'],
+  ['macd', 'MACD', '#1c4f94'], ['rsi', 'RSI', '#6b3fa0'],
+] as const
+type Key = (typeof OVERLAYS)[number][0] | (typeof STUDIES)[number][0]
 
 function ema(values: number[], span: number): number[] {
   const a = 2 / (span + 1)
@@ -21,16 +30,21 @@ function ema(values: number[], span: number): number[] {
 function sma(values: number[], n: number): (number | null)[] {
   return values.map((_, i) => (i + 1 < n ? null : values.slice(i + 1 - n, i + 1).reduce((s, x) => s + x, 0) / n))
 }
+const TIP = { background: '#fff', border: '1px solid #e4e8ef', borderRadius: 8, fontSize: 12 }
 
-export default function PriceChart({ bars }: { bars: PriceBar[] }) {
+export default function PriceChart({ bars, tech }: { bars: PriceBar[]; tech?: Technicals | null }) {
   const [range, setRange] = useState<(typeof RANGES)[number]['k']>('1M')
-  const [show, setShow] = useState({ ema20: true, ema50: false, sma200: false, volume: true })
+  const [show, setShow] = useState<Record<Key, boolean>>({ ema20: true, ema50: false, sma200: false, volume: true, fib: false, swings: false, structure: true, fvg: false, macd: true, rsi: false })
 
   const all = useMemo(() => {
     const c = bars.map((b) => b.close)
     const e20 = ema(c, 20), e50 = ema(c, 50), s200 = sma(c, 200)
-    return bars.map((b, i) => ({ date: b.date, close: b.close, volume: b.volume, ema20: e20[i], ema50: e50[i], sma200: s200[i] }))
-  }, [bars])
+    const ts = new Map((tech?.series ?? []).map((s) => [s.date, s]))
+    return bars.map((b, i) => {
+      const t = ts.get(b.date)
+      return { date: b.date, close: b.close, volume: b.volume, ema20: e20[i], ema50: e50[i], sma200: s200[i], macd: t?.macd, signal: t?.signal, hist: t?.hist, rsi: t?.rsi ?? undefined }
+    })
+  }, [bars, tech])
 
   // index of the reference bar: N sessions back, or the first close on/after the same date M calendar months ago
   const refIndex = (span: Span) => {
@@ -49,6 +63,16 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
   const up = chg >= 0
   const line = up ? '#0a7a52' : '#b3261e'
   const maxVol = Math.max(...data.map((d) => d.volume), 1)
+  const x0 = data[0]?.date ?? '', xN = data.at(-1)?.date ?? ''
+  const visible = (d: string) => d >= x0 && d <= xN
+  const clampX = (d: string) => (d < x0 ? x0 : d)
+
+  const toggle = (k: Key, label: string, color: string) => (
+    <label key={k} className="flex cursor-pointer items-center gap-1.5">
+      <input type="checkbox" checked={show[k]} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} className="size-3.5" style={{ accentColor: color }} />
+      {label}
+    </label>
+  )
 
   return (
     <div className="card p-5">
@@ -74,15 +98,9 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
             <button key={r.k} onClick={() => setRange(r.k)} className={clsx('rounded-md px-3 py-1 text-[13px] font-medium transition', range === r.k ? 'bg-surface text-brand shadow-sm' : 'text-sub hover:text-ink')}>{r.k}</button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-4 text-[13px] text-sub">
-          {([['ema20', 'EMA 20', '#b8791a'], ['ema50', 'EMA 50', '#1c4f94'], ['sma200', 'DMA 200', '#6b3fa0'], ['volume', 'Volume', '#8492a6']] as const).map(([k, label, color]) => (
-            <label key={k} className="flex cursor-pointer items-center gap-1.5">
-              <input type="checkbox" checked={show[k]} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} className="size-3.5" style={{ accentColor: color }} />
-              {label}
-            </label>
-          ))}
-        </div>
+        <div className="flex flex-wrap items-center gap-4 text-[13px] text-sub">{OVERLAYS.map(([k, l, c]) => toggle(k, l, c))}</div>
       </div>
+      {tech && <div className="mb-3 flex flex-wrap items-center gap-4 text-[13px] text-sub"><span className="label">Studies</span>{STUDIES.map(([k, l, c]) => toggle(k, l, c))}</div>}
 
       <div className="mb-2 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-[13px]">
         <span className={clsx('num text-[15px] font-semibold', tone(chg))}>{pct(chg, 2, true)} <span className="font-normal text-mute">over {range}</span></span>
@@ -92,24 +110,74 @@ export default function PriceChart({ bars }: { bars: PriceBar[] }) {
 
       <div className="h-80">
         <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ left: 0, right: 8, top: 6 }}>
+          <ComposedChart data={data} margin={{ left: 0, right: 8, top: 6 }} syncId="px">
             <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={line} stopOpacity={0.16} /><stop offset="100%" stopColor={line} stopOpacity={0} /></linearGradient></defs>
             <CartesianGrid stroke="#eef1f6" vertical={false} />
             <XAxis dataKey="date" stroke="#8492a6" fontSize={11} minTickGap={36} tickFormatter={(d: string) => d.slice(5)} />
             <YAxis yAxisId="p" stroke="#8492a6" fontSize={11} domain={[(m: number) => m * 0.985, (m: number) => m * 1.015]} width={56} tickFormatter={(v: number) => v.toFixed(0)} />
             <YAxis yAxisId="v" orientation="right" hide domain={[0, maxVol * 5]} />
             <Tooltip
-              contentStyle={{ background: '#fff', border: '1px solid #e4e8ef', borderRadius: 8, fontSize: 12 }}
+              contentStyle={TIP}
               formatter={(v, name) => [name === 'volume' ? Number(v).toLocaleString('en-IN') : `₹${inr(Number(v))}`, String(name)]}
             />
             {show.volume && <Bar isAnimationActive={false} yAxisId="v" dataKey="volume" fill="#cfd6e2" radius={[2, 2, 0, 0]} />}
+            {tech && show.fvg && tech.fvgs.map((g) => (
+              <ReferenceArea key={`${g.date}${g.dir}`} yAxisId="p" x1={clampX(g.date)} x2={xN} y1={g.bottom} y2={g.top} ifOverflow="hidden"
+                fill={g.dir === 'bull' ? '#0a7a52' : '#b3261e'} fillOpacity={0.1} stroke={g.dir === 'bull' ? '#0a7a52' : '#b3261e'} strokeOpacity={0.25} />
+            ))}
+            {tech?.fib && show.fib && tech.fib.levels.map((l) => (
+              <ReferenceLine key={l.ratio} yAxisId="p" y={l.price} stroke="#b8791a" strokeDasharray={l.kind === 'extension' ? '2 4' : '5 3'} strokeOpacity={l.ratio === 0.618 || l.ratio === 0.5 ? 0.9 : 0.55}
+                label={{ value: `${l.kind === 'extension' ? 'ext ' : ''}${l.ratio} · ${l.price.toFixed(0)}`, position: 'insideLeft', fontSize: 10, fill: '#b8791a' }} />
+            ))}
             <Area isAnimationActive={false} yAxisId="p" dataKey="close" stroke={line} strokeWidth={2} fill="url(#pg)" dot={data.length <= 12} />
             {show.ema20 && <Line isAnimationActive={false} yAxisId="p" dataKey="ema20" stroke="#b8791a" strokeWidth={1.4} dot={false} />}
             {show.ema50 && <Line isAnimationActive={false} yAxisId="p" dataKey="ema50" stroke="#1c4f94" strokeWidth={1.4} dot={false} />}
             {show.sma200 && <Line isAnimationActive={false} yAxisId="p" dataKey="sma200" stroke="#6b3fa0" strokeWidth={1.4} dot={false} connectNulls />}
+            {tech && show.swings && tech.swings.filter((s) => visible(s.date)).map((s) => (
+              <ReferenceDot key={`${s.date}${s.kind}`} yAxisId="p" x={s.date} y={s.price} r={3} fill={s.kind === 'H' ? '#b3261e' : '#0a7a52'} stroke="none"
+                label={{ value: s.label ?? s.kind, position: s.kind === 'H' ? 'top' : 'bottom', fontSize: 10, fill: '#3d4b5f' }} />
+            ))}
+            {tech && show.structure && tech.structure.events.filter((e) => visible(e.date)).map((e) => (
+              <ReferenceLine key={`${e.date}${e.dir}`} yAxisId="p" ifOverflow="visible" stroke={e.dir === 'up' ? '#0a7a52' : '#b3261e'} strokeDasharray="4 3"
+                segment={[{ x: clampX(e.swingDate), y: e.level }, { x: e.date, y: e.level }]}
+                label={{ value: e.type, position: 'insideTopRight', fontSize: 10, fontWeight: 600, fill: e.dir === 'up' ? '#0a7a52' : '#b3261e' }} />
+            ))}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {tech && show.macd && (
+        <div className="mt-2 h-28">
+          <div className="label">MACD 12, 26, 9 <span className="normal-case text-mute">· blue MACD, amber signal, bars = histogram</span></div>
+          <ResponsiveContainer>
+            <ComposedChart data={data} margin={{ left: 0, right: 8, top: 4 }} syncId="px">
+              <XAxis dataKey="date" hide />
+              <YAxis stroke="#8492a6" fontSize={10} width={56} tickFormatter={(v: number) => v.toFixed(1)} />
+              <Tooltip contentStyle={TIP} formatter={(v, n) => [Number(v).toFixed(2), String(n)]} />
+              <ReferenceLine y={0} stroke="#cfd6e2" />
+              <Bar isAnimationActive={false} dataKey="hist">{data.map((d) => <Cell key={d.date} fill={(d.hist ?? 0) >= 0 ? '#9fd3bd' : '#efb1ab'} />)}</Bar>
+              <Line isAnimationActive={false} dataKey="macd" stroke="#1c4f94" strokeWidth={1.3} dot={false} />
+              <Line isAnimationActive={false} dataKey="signal" stroke="#b8791a" strokeWidth={1.3} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {tech && show.rsi && (
+        <div className="mt-6 h-24">
+          <div className="label">RSI 14</div>
+          <ResponsiveContainer>
+            <ComposedChart data={data} margin={{ left: 0, right: 8, top: 4 }} syncId="px">
+              <XAxis dataKey="date" hide />
+              <YAxis stroke="#8492a6" fontSize={10} width={56} domain={[0, 100]} ticks={[30, 50, 70]} />
+              <Tooltip contentStyle={TIP} formatter={(v) => [Number(v).toFixed(1), 'RSI']} />
+              <ReferenceArea y1={30} y2={70} fill="#6b3fa0" fillOpacity={0.05} />
+              <ReferenceLine y={70} stroke="#efb1ab" strokeDasharray="3 3" />
+              <ReferenceLine y={30} stroke="#9fd3bd" strokeDasharray="3 3" />
+              <Line isAnimationActive={false} dataKey="rsi" stroke="#6b3fa0" strokeWidth={1.3} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   )
 }

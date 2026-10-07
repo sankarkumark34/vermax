@@ -192,5 +192,8 @@ def analyse(symbol: str) -> dict:
                          "listOpen": _r(first.open)})
             if len(df) <= 260:
                 info["weeks"], info["months"] = _periods(df, "W-FRI", float(first.open)), _periods(df, "M", float(first.open))
+        if listed and listed_on is not None and pd.notna(listed_on):
+            from .ipo_journey import journey_for
+            info["journey"] = journey_for(symbol, listed_on, ipo.get("issuePrice"), df)
         out["ipo"] = info
     return out

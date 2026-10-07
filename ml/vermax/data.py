@@ -36,6 +36,21 @@ def _adjust_corporate_actions(df: pd.DataFrame) -> pd.DataFrame:
     ev = (off & near).fillna(False)
     factor = pd.Series(1.0, index=df.index)
     factor[ev] = r[ev]
+    # Detector 2: some ex-dates arrive with an UNadjusted PREVCLOSE in the bhavcopy, so detector 1 cannot see them.
+    # Recognise them when both the open and the day's extreme sit at a canonical ratio of the previous close
+    # (exchange price bands make genuine one-day moves of that size practically impossible).
+    pv = prev_row_close.to_numpy()
+    ro, rh, rl = df["open"].to_numpy() / pv, df["high"].to_numpy() / pv, df["low"].to_numpy() / pv
+    f2 = np.full(len(df), np.nan)
+    for c in CANON:
+        if 0.75 < c < 1.33:
+            continue
+        ext = rh if c < 1 else rl
+        hit = (np.abs(ro / c - 1) < 0.04) & (np.abs(ext / c - 1) < 0.08) & np.isnan(f2)
+        f2[hit] = c
+    ev2 = pd.Series(~np.isnan(f2), index=df.index) & (r - 1).abs().le(0.05) & ~ev
+    factor[ev2] = f2[ev2.to_numpy()]
+    df.loc[ev2, "prev_close"] = df.loc[ev2, "prev_close"] * factor[ev2]   # make that day's own 1-day change sane
     # rows BEFORE an event are scaled by the event ratio: reverse cumulative product per symbol
     shifted = factor.groupby(df["symbol"]).shift(-1).fillna(1.0)
     rev = shifted.groupby(df["symbol"]).transform(lambda s: s[::-1].cumprod()[::-1])

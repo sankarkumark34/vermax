@@ -1,13 +1,12 @@
 # Vermax — NSE swing-trading decision platform
 
 Daily "what to buy tomorrow" list for Indian equities: **stop-loss, two targets, position size, reasons**, with a
-**Defence & Engineering (incl. AI / data-centre infra) priority**, fundamentals + news overlays, screeners, and a forward
-paper-trade journal. Holding period ≤ 10 trading days.
+**Defence & Engineering (incl. AI / data-centre infra) priority**, fundamentals + news overlays, IPO screeners. Holding period ≤ 10 trading days.
 
 ```
-apps/api   NestJS (port 4100)  ingest NSE data · pipeline · sentiment · journal · alerts · scheduler · REST · serves the built UI
+apps/api   NestJS (port 4100)  ingest NSE data · pipeline · sentiment · alerts · scheduler · REST · serves the built UI
 ml/        Python (LightGBM)   features · walk-forward research · blend model · scorer · fundamentals · screeners · health
-apps/web   React + Vite        Tomorrow · Elite 3 · Screener · IPOs · Sectors · Journal · Backtest · Stock
+apps/web   React + Vite        Tomorrow · Stock Analysis · IPO Stocks · IPO Screener · IPO Study · Stock
 scripts/   start-vermax.cmd (auto-restart supervisor) · install/uninstall-autostart.cmd · .env.example.cmd
 data/      market.sqlite (NSE EOD since 2019) · derivs.sqlite (FII/F&O OI) · picks/ · models/ · research/ · screener/
 docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf

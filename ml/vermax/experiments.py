@@ -120,6 +120,40 @@ def derivs_main():
         print(f"{k:13s} IC {v['icMean']:.4f} min {v['icMinYear']:.4f} exp {v['expPct']:.2f} PF {v['PF']:.2f} CAGR {v['CAGR']:.1f} DD {v['maxDD']:.1f} {v['expByYear']}")
 
 
+def structure_main():
+    """A/B: production blend with vs without MACD / market-structure / Fibonacci / FVG features."""
+    from .production import SEEDS
+    from .structure import STRUCT_FEATURES, add_structure_features
+    t0 = time.time()
+    raw = pd.read_parquet(config.OUT_DIR / "features.parquet")
+    raw = add_structure_features(raw)
+    print("structure features", round(time.time() - t0), "s", flush=True)
+    df = prep(raw)
+    bars = raw[["symbol", "date", "open", "high", "low", "close"]]
+    dates = pd.DatetimeIndex(sorted(bars.date.unique()))
+    # single-feature rank-IC (does the study on its own say anything about the next 10 days?)
+    solo = {}
+    for f in STRUCT_FEATURES:
+        ic = ic_by_year(df[df.date.dt.year >= 2021], f)["mean"]
+        solo[f] = {"icMean": round(float(ic.mean()), 4), "icByYear": {str(k): round(float(v), 4) for k, v in ic.items()}}
+        print(f"{f:15s} IC {ic.mean():+.4f}  {dict((k, round(v, 3)) for k, v in ic.items())}", flush=True)
+    res = {"solo": solo}
+    for name, feats in (("blend", ALL_FEATURES), ("blend+structure", ALL_FEATURES + STRUCT_FEATURES)):
+        e = wf_regress(df, SEEDS, feats)
+        r = wf_rank(df, feats)
+        df[name] = (e.groupby(df.date).rank(pct=True) + r.groupby(df.date).rank(pct=True)) / 2
+        print(name, "done", round(time.time() - t0), "s", flush=True)
+    oos = df[df["blend"].notna()].copy()
+    d2 = dates[dates >= oos.date.min()]
+    for name in ("blend", "blend+structure"):
+        res[name] = evaluate(oos, name, bars, d2)
+    (config.OUT_DIR / "experiments_structure.json").write_text(json.dumps(res, indent=1))
+    for k in ("blend", "blend+structure"):
+        v = res[k]
+        print(f"{k:16s} IC {v['icMean']:.4f} min {v['icMinYear']:.4f} exp {v['expPct']:.2f} PF {v['PF']:.2f} CAGR {v['CAGR']:.1f} DD {v['maxDD']:.1f} {v['expByYear']}")
+
+
 if __name__ == "__main__":
     import sys
-    derivs_main() if len(sys.argv) > 1 and sys.argv[1] == "derivs" else main()
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    {"derivs": derivs_main, "structure": structure_main}.get(arg, main)()

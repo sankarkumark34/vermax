@@ -23,9 +23,9 @@ interface Row {
 }
 interface RatingComp { key: string; label: string; weight: number; score: number; note: string }
 interface Rating { score: number; grade: 'STRONG_BUY' | 'BUY' | 'WATCH' | 'AVOID'; label: string; vetoes: string[]; components: RatingComp[] }
-interface Resp { asOf: string | null; rows: Row[]; building?: boolean; stale?: boolean }
+interface Resp { asOf: string | null; rows: Row[]; building?: boolean; stale?: boolean; minMonths?: number; excludedYoung?: number }
 
-const WINDOWS = [3, 6, 12]
+const WINDOWS = [6, 9, 12]   // stocks need >= 3 months of trading to be listed at all
 const GRADE_ORDER = { STRONG_BUY: 3, BUY: 2, WATCH: 1, AVOID: 0 } as const
 const gradeTone = (g?: string) => (g === 'STRONG_BUY' ? 'bg-pos text-white' : g === 'BUY' ? 'bg-pos-bg text-pos' : g === 'WATCH' ? 'bg-amber-bg text-amber' : 'bg-neg-bg text-neg')
 
@@ -119,6 +119,7 @@ export default function IpoStocks() {
         <p className="mt-1 max-w-3xl text-[13px] text-sub">
           Main-board IPOs from NSE's past-issues list (SME issues and direct listings excluded). A week counts as up when its last close beats the previous week's last close; a month when its month-end close beats the
           previous month-end (the first period compares with the listing price). The current, unfinished week/month is shown faded and does not count. Official NSE close of {data.asOf}.
+          Only stocks with at least <b>{data.minMonths ?? 3} months</b> of NSE trading are listed{data.excludedYoung ? ` (${data.excludedYoung} newer listings hidden)` : ''}.
           {data.stale && data.building && ' Updating to the latest session in the background…'}
         </p>
       </div>

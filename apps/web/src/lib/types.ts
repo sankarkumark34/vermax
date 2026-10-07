@@ -21,13 +21,8 @@ export interface Pick {
   themeBoost: boolean; close: number; changePct: number; inPriceBand: boolean; turnover20Cr: number
   atrPct: number; rsi: number; volRatio: number | null; delivPct: number | null; rs60: number | null
   sectorRank: number | null; tags: string[]; reasons: Reason[]; plan: TradePlan
-  list: 'core' | 'theme' | 'elite'; decision: 'BUY' | 'WATCH' | 'REJECT'; rejectReasons: string[]
+  list: 'core' | 'theme'; decision: 'BUY' | 'WATCH' | 'REJECT'; rejectReasons: string[]
   fundamentals: Fundamentals | null; sentiment: Sentiment | null; sizing: Sizing; circuit?: CircuitBrief | null
-}
-export interface SectorRow {
-  sector: string; isTheme: boolean; stocks: number; rank: number | null
-  ret5: number; ret20: number; ret60: number; rs20: number; rs60: number
-  breadth50: number; avgScore: number; top: string[]
 }
 export interface Regime {
   label: 'BULLISH' | 'PULLBACK' | 'DEFENSIVE'; sizeMultiplier: number; niftyVs50dma: number; niftyVs200dma: number
@@ -39,45 +34,35 @@ export interface Run {
   model: { trainedTo: string; trainedAt: string; rounds: number }
   universe: { liquidStocks: number; priceBand: [number, number]; inBand: number }
   regime: Regime; config: { minRet10?: number; tilt: number; tiltMinSectorRank: number; sectorCap: number; horizonDays: number }
-  core: Pick[]; theme: Pick[]; elite?: Pick[]; rejected: Pick[]; sectors: SectorRow[]; disclaimer: string
+  core: Pick[]; theme: Pick[]; rejected: Pick[]; disclaimer: string
 }
 export interface PipelineState { running: boolean; step: string; startedAt: string | null; finishedAt: string | null; error: string | null; lastAsOf: string | null }
-export interface JournalStats {
-  closed: number; open: number; skipped: number; winRate: number | null; expectancyPct: number | null
-  avgWinPct: number | null; avgLossPct: number | null; profitFactor: number | null; avgHoldDays: number | null
-  bestPct: number | null; worstPct: number | null
-}
-export interface JournalPick {
-  id: number; asOf: string; list: 'core' | 'theme'; symbol: string; sector: string; rank: number; score: number
-  entryRef: number; stop: number; t1: number; t2: number; status: string; entry: number | null; t1Hit: boolean
-  days: number; netRet: number | null; exitLabel: string | null; lastClose: number | null; stopNow: number | null; fundVerdict: string | null
-  circuit?: CircuitBrief | null
-}
-export interface Journal { stats: JournalStats & { byList: Record<string, JournalStats> }; picks: JournalPick[] }
 export interface Bar { date: string; open: number; high: number; low: number; close: number; volume: number; deliveryPct: number | null }
 export interface StockResp {
   symbol: string; info: { name: string | null; sector: string } | null; bars: Bar[]
   model: { modelRank: number; of: number; score: number; rankScore: number; asOf: string } | null
   fundamentals?: Fundamentals | null; sentiment?: Sentiment | null; circuit?: CircuitSummary
-}
-export interface Variant {
-  name: string; n: number; 'win%': number; 'exp%': number; PF: number; 'pos%': number; 'CAGR%': number; 'maxDD%': number
-  'wk_mean%': number; 'wk>=5%': number; 'wk<=-3%': number; final: number; yearly: Record<string, number>
-}
-export interface Performance {
-  window: [string, string]; costsRoundTripPct: number
-  plan: { stop: string; t1: string; t2: string; timeStopDays: number; entry: string }
-  variants: Variant[]; ic: Record<string, { meanIC: number; ir: number }>
-  deciles: { decile: number; avgFwdPct: number; hit3Pct: number }[]
-  theme: Record<string, unknown>
-  elite?: { rule: string; elite: EliteStats; baselineTop3Weekly: EliteStats }
-}
-export interface EliteStats {
-  trades: number; weeks: number; t1HitPct: number; stopPct: number; positivePct: number; expectancyPct: number
-  avgWinPct: number; avgLossPct: number; weeksAtLeast1T1Pct: number; weeksAtLeast2T1Pct: number; weeksAllThreeLosePct: number
-  byYear: Record<string, { t1HitPct: number; expectancyPct: number }>
+  technicals?: Technicals | null
 }
 
+// mirrors apps/api/src/analysis/technicals.ts
+export interface Swing { i: number; date: string; price: number; kind: 'H' | 'L'; label: 'HH' | 'LH' | 'HL' | 'LL' | null }
+export interface StructureEvent { i: number; date: string; type: 'BOS' | 'CHoCH'; dir: 'up' | 'down'; level: number; swingDate: string }
+export interface Fvg { i: number; date: string; dir: 'bull' | 'bear'; top: number; bottom: number; sizePct: number; touched: boolean }
+export interface TradePlan { side: 'long' | 'short'; entry: number; stop: number; riskPct: number; target: number; targetPct: number; rr: number; stopBasis: string }
+export interface Technicals {
+  asOf: string
+  series: { date: string; macd: number; signal: number; hist: number; rsi: number | null }[]
+  macd: { macd: number; signal: number; hist: number; state: 'bullish' | 'bearish'; lastCross: { date: string; dir: 'up' | 'down'; sessionsAgo: number } | null; histRising: boolean }
+  rsi: number | null
+  swings: Swing[]
+  structure: { trend: 'bullish' | 'bearish' | 'neutral'; events: StructureEvent[]; last: StructureEvent | null; lastSwingHigh: Swing | null; lastSwingLow: Swing | null }
+  fib: { dir: 'up' | 'down'; from: { date: string; price: number }; to: { date: string; price: number }; levels: { ratio: number; price: number; kind: 'retracement' | 'extension' }[]; zone: string } | null
+  fvgs: Fvg[]
+  plans: { long: TradePlan; short: TradePlan }
+  atrPct: number
+  signals: string[]
+}
 export interface CircuitEvent {
   date: string; endDate: string; band: number; lockDays: number; refPrice: number; lockClose: number; dropPct: number
   recovered: boolean; recoveryDays: number | null; halfRecoveryDays: number | null; furtherFallPct: number
@@ -95,9 +80,9 @@ export interface ScreenerRow {
   deliveryPct: number | null; d5: number | null; d10: number | null; w3: number | null; w4: number | null; m1: number | null; q1: number | null; h1: number | null; y1: number | null
   prevClose?: number | null; refs?: Record<string, number | null>; refsLive?: Record<string, number | null>
   modelRank: number | null; modelScore: number | null; vetoReason?: string | null
-  rating?: { grade: 'A' | 'B' | 'C' | 'D' | '-'; eligible: boolean; reasons: string[]; tomorrow: 'elite' | 'core' | 'theme' | null; score: number }
+  rating?: { grade: 'A' | 'B' | 'C' | 'D' | '-'; eligible: boolean; reasons: string[]; tomorrow: 'core' | 'theme' | null; score: number }
 }
-export interface ScreenerResp { asOf: string; liveSession?: string; generatedAt: string; count: number; rankAsOf: string | null; rankOf: number; rows: ScreenerRow[] }
+export interface ScreenerResp { asOf: string; liveSession?: string; generatedAt: string; count: number; rankAsOf: string | null; rankOf: number; minMonths?: number; excludedYoung?: number; rows: ScreenerRow[] }
 
 export interface LiveQuote { symbol: string; price: number; prevClose: number | null; changePct: number | null; dayHigh: number | null; dayLow: number | null; time: string | null; source: 'yahoo' }
 
@@ -106,4 +91,4 @@ export interface IpoRow extends ScreenerRow {
   highSinceListing: number | null; fromHigh: number | null; lowSinceListing: number | null
   issuePrice?: number | null; vsIssue?: number | null; listingGain?: number | null
 }
-export interface IpoResp { asOf: string; liveSession?: string; generatedAt: string; count: number; months: number; rows: IpoRow[] }
+export interface IpoResp { asOf: string; liveSession?: string; generatedAt: string; count: number; months: number; minMonths?: number; excludedYoung?: number; rows: IpoRow[] }

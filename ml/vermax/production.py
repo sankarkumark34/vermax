@@ -162,27 +162,8 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.
     ranked = ranked.sort_values("rank_score", ascending=False)
     picks = [pack(r, i + 1) for i, (_, r) in enumerate(ranked.iterrows())]
 
-    ep = day[day.close.between(min_price, max_price) & (day.d_ema50 > 0) & (day.d_sma200 > 0) & (day.ret20 > 0) & (day.sec_rank.fillna(0) >= TILT_MIN_RANK)]
-    ep = select_picks(ep.assign(day_rank=0), "prob", 15, 0.0, sector_cap, TILT, TILT_MIN_RANK).sort_values("rank_score", ascending=False)
-    elite = [pack(r, i + 1) for i, (_, r) in enumerate(ep.iterrows())]
-
     th = day[(day.is_theme == 1) & day.close.between(min_price, max_price)].sort_values("rank_score", ascending=False).head(theme_watch)
     watch = [pack(r, i + 1) for i, (_, r) in enumerate(th.iterrows())]
-
-    sec = (ranking_pool[ranking_pool.sector != "Other"].groupby("sector")
-           .agg(n=("symbol", "size"), rank=("sec_rank", "first"), ret5=("sec_ret5", "first"), ret20=("sec_ret20", "first"),
-                ret60=("sec_ret60", "first"), rs20=("sec_rs20", "first"), rs60=("sec_rs60", "first"),
-                breadth=("sec_breadth50", "first"), avgScore=("prob", "mean"), best=("rank_score", "max"))
-           .reset_index().sort_values("rank", ascending=False))
-    sectors = []
-    for _, s in sec.iterrows():
-        top = day[day.sector == s["sector"]].sort_values("rank_score", ascending=False).head(3)
-        sectors.append({"sector": s["sector"], "isTheme": is_priority_theme(s["sector"]), "stocks": int(s["n"]),
-                        "rank": round(float(s["rank"]), 2) if pd.notna(s["rank"]) else None,
-                        "ret5": round(float(s["ret5"]), 4), "ret20": round(float(s["ret20"]), 4),
-                        "ret60": round(float(s["ret60"]), 4), "rs20": round(float(s["rs20"]), 4),
-                        "rs60": round(float(s["rs60"]), 4), "breadth50": round(float(s["breadth"]), 3),
-                        "avgScore": round(float(s["avgScore"]), 4), "top": list(top["symbol"])})
 
     ranked_all = ranking_pool.sort_values("rank_score", ascending=False)
     ranking = [{"symbol": r.symbol, "sector": r.sector, "score": round(float(r.prob), 4), "rankScore": round(float(r.rank_score), 4),
@@ -191,7 +172,7 @@ def score(shortlist: int = 15, min_price: float = 200.0, max_price: float = 650.
     out = {"asOf": latest, "generatedAt": datetime.now(timezone.utc).isoformat(),
            "model": {"trainedTo": meta["data_to"], "trainedAt": meta["trained_at"], "rounds": meta["rounds"]},
            "universe": {"liquidStocks": int(len(day)), "priceBand": [min_price, max_price], "inBand": int(len(band))},
-           "regime": _regime(day), "picks": picks, "themeWatch": watch, "elite": elite, "sectors": sectors, "ranking": ranking,
+           "regime": _regime(day), "picks": picks, "themeWatch": watch, "ranking": ranking,
            "config": {"minRet10": min_ret10, "tilt": TILT, "tiltMinSectorRank": TILT_MIN_RANK, "sectorCap": sector_cap, "horizonDays": config.HORIZON}}
     dest = config.OUT_DIR.parent / "picks"
     dest.mkdir(parents=True, exist_ok=True)

@@ -60,6 +60,7 @@ export interface AnalysisInput {
     weeks?: { up: number; total: number };
   } | null;
   sentiment?: { score: number; headlines: number; severe: boolean } | null;
+  technicals?: { macdBullish: boolean; structure: 'bullish' | 'bearish' | 'neutral'; lastEvent: string | null } | null;
   circuitEventsLast12m?: number | null;
   lockedNow?: boolean;
   today?: string; // YYYY-MM-DD, for the results-date check
@@ -114,6 +115,9 @@ export function analyse(i: AnalysisInput): AnalysisScore {
   add({ id: 'high52', group: 'trend', label: 'Near 52-week high', value: has(p?.fromHigh52) ? `${p!.fromHigh52.toFixed(1)}%` : 'n/a', standard: 'within 20% of high', pass: has(p?.fromHigh52) ? p!.fromHigh52 >= -20 : null });
   add({ id: 'rs', group: 'trend', label: 'Beating Nifty (6 months)', value: has(p?.rs6m) ? `${p!.rs6m > 0 ? '+' : ''}${p!.rs6m.toFixed(1)} pts` : 'n/a', standard: '> 0', pass: has(p?.rs6m) ? p!.rs6m > 0 : null });
   add({ id: 'rsi', group: 'trend', label: 'RSI (14) in healthy zone', value: num(p?.rsi14, 0), standard: '40 – 70', pass: has(p?.rsi14) ? p!.rsi14 >= 40 && p!.rsi14 <= 70 : null });
+  const t = i.technicals;
+  add({ id: 'macd', group: 'trend', label: 'MACD above signal line', value: t ? (t.macdBullish ? 'bullish' : 'bearish') : 'n/a', standard: 'MACD > signal (12, 26, 9)', pass: t ? t.macdBullish : null });
+  add({ id: 'structure', group: 'trend', label: 'Market structure (swing highs / lows)', value: t ? `${t.structure}${t.lastEvent ? ` · last ${t.lastEvent}` : ''}` : 'n/a', standard: 'bullish: last break of structure was up', pass: t && t.structure !== 'neutral' ? t.structure === 'bullish' : null });
 
   // ---- Risk & liquidity ---------------------------------------------------------------
   add({ id: 'liq', group: 'risk', label: 'Liquidity (avg daily value)', value: has(p?.turnoverCr) ? `₹${p!.turnoverCr} Cr` : 'n/a', standard: '≥ ₹5 Cr / day', pass: has(p?.turnoverCr) ? p!.turnoverCr >= 5 : null });

@@ -7,10 +7,8 @@ import { loadConfig } from '../config/app.config.js';
 import { CircuitService } from '../circuit/circuit.service.js';
 import { NotifyService } from '../notify/notify.service.js';
 import { DataService } from '../data/data.service.js';
-import { PickEntity } from '../database/entities/pick.entity.js';
 import { PickRunEntity } from '../database/entities/pick-run.entity.js';
 import { StockEntity } from '../database/entities/stock.entity.js';
-import { JournalService } from '../journal/journal.service.js';
 import { SentimentService, type SentimentResult } from '../sentiment/sentiment.service.js';
 import { nextSession, positionSize } from './sizing.js';
 import type { EnrichedPick, Fundamentals, PublishedRun, PyPick, PyScoreFile } from './types.js';
@@ -27,7 +25,6 @@ export interface PipelineState {
 function summarize(run: PublishedRun): string {
   const line = (p: PublishedRun['core'][number]) => `${p.symbol} ₹${p.close} · SL ${p.plan.stop} · T1 ${p.plan.t1} · T2 ${p.plan.t2}`;
   const out = [`Picks for ${run.tradeDate} (close ${run.asOf}) · market ${run.regime.label}`];
-  if (run.elite.length) out.push('', '★ Elite', ...run.elite.map(line));
   if (run.core.length) out.push('', 'Top picks', ...run.core.map(line));
   if (run.theme.length) out.push('', 'Defence & Engineering', run.theme.map((p) => p.symbol).join(', '));
   out.push('', 'Buy only at open ≤ the listed limit; exit by day 10.');
@@ -35,7 +32,7 @@ function summarize(run: PublishedRun): string {
 }
 
 const DISCLAIMER =
-  'Decision-support output from a statistical model, not investment advice. Backtested edge is small (see /performance); ' +
+  'Decision-support output from a statistical model, not investment advice. Backtested edge is small; ' +
   'losses are normal. Fundamentals and news are overlays and were not part of the backtest.';
 
 @Injectable()
@@ -48,12 +45,10 @@ export class PicksService {
     private readonly bridge: PythonBridgeService,
     private readonly data: DataService,
     private readonly sentiment: SentimentService,
-    private readonly journal: JournalService,
     private readonly circuits: CircuitService,
     private readonly notify: NotifyService,
     @InjectDataSource() private readonly ds: DataSource,
     @InjectRepository(PickRunEntity) private readonly runs: Repository<PickRunEntity>,
-    @InjectRepository(PickEntity) private readonly picks: Repository<PickEntity>,
     @InjectRepository(StockEntity) private readonly stocks: Repository<StockEntity>,
   ) {}
 
@@ -89,9 +84,6 @@ ${err.message.slice(0, 400)}`);
       const sum = await this.data.catchUp();
       this.log.log(`ingest: ${JSON.stringify(sum)}`);
     }
-    this.step('journal: updating open paper trades');
-    await this.journal.refresh().catch((e: Error) => this.log.warn(`journal refresh failed: ${e.message}`));
-
     this.step('derivatives positioning (FII / F&O open interest)');
     const since = new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10);
     await this.bridge.run('derivs', { start: since }, 15 * 60_000).catch((e: Error) => this.log.warn(`derivs update failed: ${e.message}`));
@@ -107,11 +99,10 @@ ${err.message.slice(0, 400)}`);
     // Overlay pool: enough candidates that vetoes still leave a full list.
     const corePool = file.picks.slice(0, this.cfg.picks.shortlist);
     const themePool = file.themeWatch.slice(0, this.cfg.picks.shortlist);
-    const elitePool = (file.elite ?? []).slice(0, this.cfg.picks.shortlist);
-    const symbols = [...new Set([...corePool, ...themePool, ...elitePool].map((p) => p.symbol))];
+    const symbols = [...new Set([...corePool, ...themePool].map((p) => p.symbol))];
 
     this.step(`fundamentals for ${symbols.length} stocks`);
-    const sectorMap = Object.fromEntries([...corePool, ...themePool, ...elitePool].map((p) => [p.symbol, p.sector]));
+    const sectorMap = Object.fromEntries([...corePool, ...themePool].map((p) => [p.symbol, p.sector]));
     let fundList: Fundamentals[] = [];
     try {
       fundList = await this.bridge.run<Fundamentals[]>('fundamentals', { symbols, sectors: sectorMap }, 30 * 60_000);
@@ -132,7 +123,7 @@ ${err.message.slice(0, 400)}`);
     this.step('assembling final picks');
     const circ = new Map<string, Awaited<ReturnType<CircuitService['brief']>>>();
     for (const sym of symbols) circ.set(sym, await this.circuits.brief(sym));
-    const enrich = (p: PyPick, list: 'core' | 'theme' | 'elite'): EnrichedPick => {
+    const enrich = (p: PyPick, list: 'core' | 'theme'): EnrichedPick => {
       const f = fund.get(p.symbol) ?? null;
       const s = sent.get(p.symbol) ?? null;
       const reasons: string[] = [];
@@ -161,12 +152,6 @@ ${err.message.slice(0, 400)}`);
     };
     const coreAll = corePool.map((p) => enrich(p, 'core'));
     const themeAll = themePool.map((p) => enrich(p, 'theme'));
-    const eliteAll = elitePool.map((p) => enrich(p, 'elite'));
-    // Elite = strictest: fundamentals must PASS and news must not be negative (quality over quantity, max 3).
-    const elite = eliteAll
-      .filter((p) => p.decision !== 'REJECT' && p.fundamentals?.verdict === 'PASS' && (p.sentiment?.score ?? 0) > -0.15)
-      .slice(0, 3)
-      .map((p) => ({ ...p, decision: 'BUY' as const }));
     const core = coreAll.filter((p) => p.decision !== 'REJECT').slice(0, this.cfg.picks.finalCore);
     const theme = themeAll.filter((p) => p.decision !== 'REJECT').slice(0, this.cfg.picks.finalTheme);
     const rejected = [...coreAll, ...themeAll].filter((p, i, a) => p.decision === 'REJECT' && a.findIndex((q) => q.symbol === p.symbol) === i);
@@ -181,15 +166,13 @@ ${err.message.slice(0, 400)}`);
       config: file.config,
       core,
       theme,
-      elite,
       rejected,
-      sectors: file.sectors,
       disclaimer: DISCLAIMER,
     };
     await this.persist(run, file.ranking ?? []);
-    // Refresh the screener and IPO caches for the new session so those pages open instantly (non-fatal).
-    this.step('refreshing screener and IPO lists');
-    for (const [cmd, args] of [['screener', {}], ['ipos', {}], ['ipo-quality', { months: 12 }]] as const) await this.bridge.run(cmd, args, 40 * 60_000).catch((e: Error) => this.log.warn(`${cmd} refresh failed: ${e.message}`));
+    // Refresh the IPO caches for the new session so those pages open instantly (non-fatal).
+    this.step('refreshing IPO lists');
+    for (const [cmd, args] of [['ipos', {}], ['ipo-quality', { months: 12 }], ['ipo-study', {}]] as const) await this.bridge.run(cmd, args, 40 * 60_000).catch((e: Error) => this.log.warn(`${cmd} refresh failed: ${e.message}`));
     this.state.lastAsOf = run.asOf;
     this.step('done');
     return run;
@@ -200,37 +183,6 @@ ${err.message.slice(0, 400)}`);
     const existing = await this.runs.findOne({ where: { asOf: run.asOf } });
     if (existing) await this.runs.update({ id: existing.id }, { regime: run.regime.label, payload, createdAt: new Date().toISOString() });
     else await this.runs.insert({ asOf: run.asOf, regime: run.regime.label, payload, createdAt: new Date().toISOString() });
-
-    // Journal: one paper trade per published symbol (core wins if a stock is in both lists).
-    // A re-run for the same signal date replaces earlier untouched (PENDING) picks that are no longer published.
-    const published = new Set([...run.elite, ...run.core, ...run.theme].map((p) => p.symbol));
-    const stale = await this.picks.find({ where: { asOf: run.asOf, status: 'PENDING' } });
-    for (const s of stale) if (!published.has(s.symbol)) await this.picks.delete({ id: s.id });
-    const seen = new Set<string>();
-    for (const p of [...run.elite, ...run.core, ...run.theme]) {
-      if (seen.has(p.symbol)) continue;
-      seen.add(p.symbol);
-      const prior = await this.picks.findOne({ where: { asOf: run.asOf, symbol: p.symbol } });
-      const row = {
-        asOf: run.asOf,
-        list: p.list,
-        symbol: p.symbol,
-        sector: p.sector,
-        rank: p.rank,
-        score: p.score,
-        entryRef: p.plan.entryRef,
-        stopPct: p.plan.stopPct,
-        atrPct: p.atrPct / 100,
-        stop: p.plan.stop,
-        t1: p.plan.t1,
-        t2: p.plan.t2,
-        fundVerdict: p.fundamentals?.verdict ?? null,
-        sentiment: p.sentiment?.score ?? null,
-        updatedAt: new Date().toISOString(),
-      };
-      if (prior) await this.picks.update({ id: prior.id }, row);
-      else await this.picks.insert({ ...row, status: 'PENDING', entry: null, t1Hit: false, days: 0, netRet: null, exitReason: null, lastClose: null, stopNow: null });
-    }
   }
 
   async latest(): Promise<(PublishedRun & { ranking?: PyScoreFile['ranking'] }) | null> {

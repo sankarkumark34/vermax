@@ -15,7 +15,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   const doc = new DocumentBuilder()
     .setTitle('Vermax API')
-    .setDescription('NSE swing-trading decision platform: daily picks with stop/targets, sector priority (Defence & Engineering), fundamentals + news overlays, paper-trade journal.')
+    .setDescription('NSE swing-trading decision platform: daily picks with stop/targets, sector priority (Defence & Engineering), fundamentals + news overlays.')
     .setVersion('0.1.0')
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, doc));

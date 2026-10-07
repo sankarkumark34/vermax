@@ -13,6 +13,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 MIN_PRICE = 50.0
 MIN_TURNOVER20_CR = 5.0          # 20-day average traded value, INR crore
 MIN_HISTORY_BARS = 220
+MIN_LIST_MONTHS = 3               # every list shown in the app: the stock must have traded on NSE for >= 3 calendar months
 
 # --- trade construction ------------------------------------------------------------
 HORIZON = 10                      # max holding period (trading days)

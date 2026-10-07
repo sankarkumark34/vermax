@@ -14,7 +14,7 @@ const HZ = [
   { k: 'm1', label: '1M' }, { k: 'q1', label: '3M' }, { k: 'h1', label: '6M' }, { k: 'y1', label: '1Y' },
 ] as const
 type HK = (typeof HZ)[number]['k']
-const WINDOWS = [1, 3, 6, 12, 24, 36]
+const WINDOWS = [6, 12, 24, 36]   // stocks need >= 3 months of trading to be listed at all
 type SortKey = 'listingDate' | 'symbol' | 'close' | 'vsIssue' | 'listingGain' | 'sinceListing' | 'fromHigh' | 'turnoverCr' | 'npos' | HK
 
 export default function Ipos() {
@@ -89,6 +89,7 @@ export default function Ipos() {
         <p className="mt-1 max-w-3xl text-[13px] text-sub">
           Main-board IPOs from NSE's past-issues list (issue price and listing date; SME issues and direct listings excluded). Returns use the official NSE close of {data.asOf}; a period shows
           n/a until the stock has been listed that long. "Positive in every period" checks only the periods available since listing.
+          Only stocks with at least <b>{data.minMonths ?? 3} months</b> of NSE trading are listed{data.excludedYoung ? ` (${data.excludedYoung} newer listings hidden)` : ''}.
         </p>
       </div>
 

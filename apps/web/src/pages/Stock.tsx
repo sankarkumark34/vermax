@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import PriceChart from '../components/PriceChart'
+import TechnicalsCard from '../components/TechnicalsCard'
 import { useParams } from 'react-router'
 import { Chip, ErrorBox, Loading, Section, Stat } from '../components/ui'
 import { api } from '../lib/api'
@@ -49,8 +50,14 @@ export default function Stock() {
       </div>
 
       <Section title="Price">
-        <PriceChart bars={d.bars} />
+        <PriceChart bars={d.bars} tech={d.technicals} />
       </Section>
+
+      {d.technicals && (
+        <Section title="Technicals" sub="MACD, RSI, swing structure (BOS / CHoCH), Fibonacci, fair value gaps and 1 : 3 trade plans.">
+          <TechnicalsCard t={d.technicals} />
+        </Section>
+      )}
 
       {d.circuit && (
         <Section title="Lower-circuit history" sub="How long this stock took to get back to its pre-circuit price after hitting a lower circuit (NSE data since 2019).">
