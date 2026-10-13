@@ -172,7 +172,7 @@ ${err.message.slice(0, 400)}`);
     await this.persist(run, file.ranking ?? []);
     // Refresh the IPO caches for the new session so those pages open instantly (non-fatal).
     this.step('refreshing IPO lists');
-    for (const [cmd, args] of [['ipos', {}], ['ipo-quality', { months: 12 }], ['ipo-study', {}]] as const) await this.bridge.run(cmd, args, 40 * 60_000).catch((e: Error) => this.log.warn(`${cmd} refresh failed: ${e.message}`));
+    for (const [cmd, args] of [['ipos', {}], ['ipo-quality', { months: 12 }], ['ipo-study', {}], ['trusted', {}]] as const) await this.bridge.run(cmd, args, 40 * 60_000).catch((e: Error) => this.log.warn(`${cmd} refresh failed: ${e.message}`));
     this.state.lastAsOf = run.asOf;
     this.step('done');
     return run;

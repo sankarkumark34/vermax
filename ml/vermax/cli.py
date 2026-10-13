@@ -32,6 +32,15 @@ def main(argv: list[str]) -> None:
         path = dest / f"ipos-{out['asOf']}.json"
         path.write_text(json.dumps(out))
         out = {"path": str(path), "asOf": out["asOf"], "count": out["count"]}
+    elif cmd == "trusted":
+        from .trusted import trusted
+        from . import config
+        out = trusted(**args)
+        dest = config.OUT_DIR.parent / "screener"
+        dest.mkdir(parents=True, exist_ok=True)
+        path = dest / f"trusted-{out['asOf']}.json"
+        path.write_text(json.dumps(out, default=str))
+        out = {"path": str(path), "asOf": out["asOf"], "scanned": out["scanned"], "count": out["count"]}
     elif cmd == "ipo-quality":
         from .ipo_quality import ipo_quality
         from . import config
