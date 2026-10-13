@@ -47,6 +47,11 @@ export interface SelectionConfig {
   technical: { extendedAboveEma50Pct: number; minRewardRisk: number; volumeMultiple: number; zoneAtrMultiple: number };
   risk: { capitalInr: number; riskPct: number; capLargePct: number; capMidSmallPct: number; liquidityPctOfAdtv: number; largeCapMinCr: number; sectorCapPct: number; totalOpenRiskPct: number };
   universe: { minAdtvCr: number; maxStocks: number };
+  /** Top Picks: periodic-performance screen applied before the 18-step analysis */
+  winners: {
+    minAdtvCr: number; minPrice: number; minMonthStreak: number; maxDrawdown3mPct: number; maxCurrentDrawdownPct: number;
+    dipPct: number; maxRecoverySessions: number; worstWeekPct: number; requireFy: boolean; maxAnalyse: number;
+  };
   gSecYieldPct: number;
   templates: Record<TemplateKey, Omit<SectorTemplate, 'thresholds'> & { overrides: Partial<Thresholds> }>;
   thresholds: Thresholds;
@@ -111,6 +116,7 @@ export const DEFAULT_CONFIG: SelectionConfig = {
   technical: { extendedAboveEma50Pct: 20, minRewardRisk: 2, volumeMultiple: 1, zoneAtrMultiple: 0.5 },
   risk: { capitalInr: 500000, riskPct: 1, capLargePct: 10, capMidSmallPct: 5, liquidityPctOfAdtv: 1, largeCapMinCr: 100000, sectorCapPct: 25, totalOpenRiskPct: 6 },
   universe: { minAdtvCr: 5, maxStocks: 800 },
+  winners: { minAdtvCr: 5, minPrice: 200, minMonthStreak: 2, maxDrawdown3mPct: 15, maxCurrentDrawdownPct: 10, dipPct: 7, maxRecoverySessions: 20, worstWeekPct: -10, requireFy: true, maxAnalyse: 250 },
   gSecYieldPct: 6.5,
   thresholds: DEFAULT_THRESHOLDS,
   templates: {
@@ -174,6 +180,7 @@ export function normaliseConfig(raw: Partial<SelectionConfig> | null | undefined
     technical: { ...DEFAULT_CONFIG.technical, ...(c.technical ?? {}) },
     risk: { ...DEFAULT_CONFIG.risk, ...(c.risk ?? {}) },
     universe: { ...DEFAULT_CONFIG.universe, ...(c.universe ?? {}) },
+    winners: { ...DEFAULT_CONFIG.winners, ...(c.winners ?? {}) },
     thresholds: { ...DEFAULT_THRESHOLDS, ...(c.thresholds ?? {}) },
     templates: Object.fromEntries(
       (Object.keys(DEFAULT_CONFIG.templates) as TemplateKey[]).map((k) => [k, { ...DEFAULT_CONFIG.templates[k], ...(c.templates?.[k] ?? {}) }]),

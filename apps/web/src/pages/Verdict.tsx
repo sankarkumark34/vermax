@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { AlertOctagon, Bell, BellOff, Check, ChevronDown, ExternalLink, Loader2, RefreshCw, Sparkles, X } from 'lucide-react'
+import { AlertOctagon, ArrowLeft, Bell, Check, ChevronDown, ExternalLink, Loader2, RefreshCw, Sparkles, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -11,15 +11,8 @@ import { PHASES, sel, type Analysis, type StepResult } from '../lib/selection'
 
 export default function VerdictPage() {
   const { symbol = '' } = useParams()
-  const qc = useQueryClient()
   const [refresh, setRefresh] = useState(0)
   const q = useQuery({ queryKey: ['analysis', symbol, refresh], queryFn: () => sel.analysis(symbol, refresh > 0), staleTime: 10 * 60_000, placeholderData: (p) => p })
-  const watch = useQuery({ queryKey: ['watchlist'], queryFn: sel.watchlist })
-  const watched = watch.data?.some((w) => w.symbol === symbol)
-  const toggleWatch = useMutation({
-    mutationFn: () => (watched ? sel.unwatch(symbol) : sel.watch({ symbol })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
-  })
 
   if (q.isLoading) return <Loading what={`${symbol} analysis (first time fetches company data, ~20 s)`} />
   if (q.error) return <ErrorBox error={q.error} hint="Check the symbol, or that NSE price history exists for it." />
@@ -27,6 +20,7 @@ export default function VerdictPage() {
 
   return (
     <>
+      <Link to="/" className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-sub hover:text-brand"><ArrowLeft className="size-3.5" /> Top Picks</Link>
       <div className="card p-5">
         <div className="flex flex-wrap items-start gap-5">
           <div className="min-w-0 flex-1">
@@ -60,9 +54,6 @@ export default function VerdictPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => setRefresh((x) => x + 1)} disabled={q.isFetching} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] hover:bg-soft disabled:opacity-60">
                 {q.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Re-run
-              </button>
-              <button onClick={() => toggleWatch.mutate()} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] hover:bg-soft">
-                {watched ? <BellOff className="size-3.5" /> : <Bell className="size-3.5" />} {watched ? 'Unwatch' : 'Watch'}
               </button>
               <Link to={`/stock/${a.symbol}`} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] hover:bg-soft">Chart <ExternalLink className="size-3" /></Link>
             </div>
@@ -232,6 +223,7 @@ function EntryPlan({ a }: { a: Analysis }) {
           </li>
         ))}
       </ul>
+      <Structure t={t} />
       <div className="mt-3 grid grid-cols-3 gap-3 border-t border-line pt-3 text-[12px] text-sub">
         <div>RSI 14 <b className="num text-ink">{t.rsi14 ?? '-'}</b></div>
         <div>ATR <b className="num text-ink">{t.atrPct}%</b></div>
@@ -243,9 +235,26 @@ function EntryPlan({ a }: { a: Analysis }) {
           <div className="mt-1 text-sub">
             Risk ₹{inr0(p.actualRisk)} ({p.actualRiskPctOfCapital}%). Limits: by risk {p.qtyByRisk}, by {p.capPct}% cap {p.qtyByCap}, by liquidity {p.qtyByLiquidity ?? 'n/a'} → binding: {p.binding === 'positionCap' ? 'position cap' : p.binding}.
           </div>
-          <Link to={`/risk?symbol=${a.symbol}&entry=${t.plan.entry}&stop=${t.plan.stop}&target=${t.plan.target}`} className="mt-1.5 inline-block text-brand">Size with your own capital →</Link>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Doc section 6.5 tools: Fibonacci retracement / extension, structure (BOS / CHoCH), order block, liquidity sweep, volume profile. */
+function Structure({ t }: { t: NonNullable<Analysis['technical']> }) {
+  const rows: [string, string][] = []
+  if (t.fib) rows.push(['Fibonacci', `${t.fib.dir}-leg ₹${inr(t.fib.from.price)} → ₹${inr(t.fib.to.price)} · ${t.fib.zone}`])
+  if (t.targets?.length) rows.push(['Targets', t.targets.slice(0, 4).map((x) => `₹${inr(x.price)} (+${x.pct}%, ${x.basis})`).join(' · ')])
+  if (t.lastStructure) rows.push(['Structure', `${t.lastStructure.type} ${t.lastStructure.dir === 'up' ? 'bullish' : 'bearish'} on ${t.lastStructure.date} at ₹${inr(t.lastStructure.level)}`])
+  if (t.orderBlock) rows.push(['Order block', `₹${inr(t.orderBlock.low)}-${inr(t.orderBlock.high)} (${t.orderBlock.date})`])
+  if (t.liquiditySweep) rows.push(['Liquidity sweep', `wick to ₹${inr(t.liquiditySweep.low)} below ₹${inr(t.liquiditySweep.level)}, closed ₹${inr(t.liquiditySweep.close)} (${t.liquiditySweep.date})`])
+  if (t.volumeProfile) rows.push(['Volume profile', `POC ₹${inr(t.volumeProfile.poc)} · value area ₹${inr(t.volumeProfile.val)}-${inr(t.volumeProfile.vah)} (${t.volumeProfile.lookback} sessions)`])
+  if (t.breakout) rows.push(['Breakout', `above ₹${inr(t.breakout.level)} on ${t.breakout.date}${t.breakout.retested ? ', retest held' : ''}`])
+  if (!rows.length) return null
+  return (
+    <div className="mt-3 space-y-1 border-t border-line pt-3 text-[12px]">
+      {rows.map(([k, v]) => <div key={k} className="flex gap-2"><span className="w-28 shrink-0 text-mute">{k}</span><span className="text-sub">{v}</span></div>)}
     </div>
   )
 }

@@ -1,14 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { CronJob } from 'cron';
 import { DataSource } from 'typeorm';
 import { PythonBridgeService } from '../bridge/python-bridge.service.js';
-import { loadConfig } from '../config/app.config.js';
 import { adjustBars } from '../data/adjust.js';
 import { NotifyService } from '../notify/notify.service.js';
 import {
-  analyzeStock, DEFAULT_CONFIG, normaliseConfig, resolveTemplate, templateKeyFor, validateConfig,
+  analyzeStock, ENGINE_VERSION, DEFAULT_CONFIG, normaliseConfig, resolveTemplate, templateKeyFor, validateConfig,
   type AnalysisResult, type CompanyData, type IndexPoint, type PriceBar, type RedFlag, type SelectionConfig,
 } from './domain/index.js';
 import { AnalysisRunEntity, JobRunEntity, RedFlagEntity, StepScoreEntity, ThresholdConfigEntity, WatchlistItemEntity } from './entities.js';
@@ -37,9 +34,8 @@ const BATCH = 20;
  * persists runs, keeps the config versions, the watchlist alerts and the red-flag review queue.
  */
 @Injectable()
-export class SelectionService implements OnModuleInit {
+export class SelectionService {
   private readonly log = new Logger(SelectionService.name);
-  private readonly cfg = loadConfig();
   private configCache: SelectionConfig | null = null;
   private surveillanceCache: { day: string; data: Surveillance } | null = null;
   private mediansCache: { at: number; data: Medians } | null = null;
@@ -52,16 +48,8 @@ export class SelectionService implements OnModuleInit {
     @InjectDataSource() private readonly ds: DataSource,
     private readonly bridge: PythonBridgeService,
     private readonly notify: NotifyService,
-    private readonly registry: SchedulerRegistry,
   ) {}
 
-  onModuleInit() {
-    if (!this.cfg.scheduler.enabled) return;
-    const cron = process.env.SELECTION_CRON ?? '30 19 * * 1-5';
-    const job = CronJob.from({ cronTime: cron, timeZone: this.cfg.scheduler.timezone, start: true, onTick: () => void this.runUniverse() });
-    this.registry.addCronJob('selection-nightly', job);
-    this.log.log(`selection run scheduled "${cron}" (${this.cfg.scheduler.timezone})`);
-  }
 
   // ---- configuration (versioned) ------------------------------------------------------------------
   async getConfig(): Promise<SelectionConfig> {
@@ -271,8 +259,10 @@ export class SelectionService implements OnModuleInit {
       const run = await this.latestRun(symbol, opts.date);
       const latestBar = await this.ds.query('SELECT MAX(date) AS d FROM daily_bars WHERE symbol = ?', [symbol]) as { d: string | null }[];
       const cfg = await this.getConfig();
-      const fresh = run && (opts.date || (run.asOfDate === latestBar[0]?.d && run.configVersion === cfg.version));
-      if (run && fresh) return { ...(JSON.parse(run.payload) as AnalysisResult), runId: run.id, cached: true };
+      const stored = run ? (JSON.parse(run.payload) as AnalysisResult) : null;
+      const current = stored?.engineVersion === ENGINE_VERSION;
+      const fresh = run && (opts.date || (current && run.asOfDate === latestBar[0]?.d && run.configVersion === cfg.version));
+      if (run && fresh) return { ...stored!, runId: run.id, cached: true };
       if (opts.date && !run) throw new NotFoundException(`No stored analysis for ${symbol} on or before ${opts.date}`);
     }
     const r = await this.analyse(symbol, { forceData: !!opts.refresh });
@@ -322,7 +312,7 @@ export class SelectionService implements OnModuleInit {
     const dates: { date: string }[] = await this.ds.query('SELECT DISTINCT date FROM daily_bars WHERE date <= ? ORDER BY date DESC LIMIT 50', [d]);
     const from = dates.at(-1)?.date ?? d;
     const rows: { symbol: string; adtv: number; n: number; last: string }[] = await this.ds.query(
-      `SELECT symbol, AVG(turnover) / 1e7 AS adtv, COUNT(*) AS n, MAX(date) AS last FROM daily_bars WHERE date >= ? GROUP BY symbol`, [from]);
+      `SELECT symbol, AVG(turnover) / 1e7 AS adtv, COUNT(*) AS n, MAX(date) AS last FROM daily_bars WHERE date >= ? AND symbol IN (SELECT symbol FROM stocks WHERE isin IS NULL OR isin NOT LIKE 'INF%') GROUP BY symbol`, [from]);
     return rows
       .filter((r) => r.last === d && r.n >= 20 && r.adtv >= cfg.universe.minAdtvCr)
       .sort((a, b) => b.adtv - a.adtv)

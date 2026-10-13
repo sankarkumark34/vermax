@@ -14,11 +14,13 @@ import { LlmClientService } from './selection/llm-client.service.js';
 import { PortfolioService } from './selection/portfolio.service.js';
 import { SelectionController } from './selection/selection.controller.js';
 import { SelectionService } from './selection/selection.service.js';
+import { WinnersController } from './winners/winners.controller.js';
+import { WinnersService } from './winners/winners.service.js';
 
 @Module({
   imports: [ScheduleModule.forRoot(), DatabaseModule, DataModule],
-  controllers: [ApiController, SelectionController],
+  controllers: [ApiController, SelectionController, WinnersController],
   providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, PicksService, SchedulerService,
-    SelectionService, PortfolioService, LlmClientService],
+    SelectionService, PortfolioService, LlmClientService, WinnersService],
 })
 export class AppModule {}

@@ -15,6 +15,12 @@ export interface Technical {
   macd: { macd: number; signal: number; hist: number }; trend: string; structure: { lastHigh: string | null; lastLow: string | null }
   support: Zone | null; resistance: Zone | null; patterns: { date: string; name: string; bullish: boolean; volumeRatio: number }[]
   breakout: { level: number; date: string; retested: boolean } | null; inFibGolden: boolean; rs: { m3: number | null; m6: number | null }; extendedPct: number
+  fib: { dir: 'up' | 'down'; from: { date: string; price: number }; to: { date: string; price: number }; levels: { ratio: number; price: number; kind: string }[]; zone: string } | null
+  volumeProfile: { poc: number; vah: number; val: number; hvn: number[]; lvn: number[]; lookback: number } | null
+  lastStructure: { type: 'BOS' | 'CHoCH'; dir: 'up' | 'down'; date: string; level: number } | null
+  orderBlock: { date: string; low: number; high: number } | null
+  liquiditySweep: { date: string; level: number; low: number; close: number } | null
+  targets: { price: number; basis: string; pct: number }[]
   checks: { trendOk: boolean; atLevel: boolean; triggerConfirmed: boolean; extended: boolean; rewardRisk: number; rrOk: boolean }
   levelReasons: string[]; technicalReady: boolean; reasons: string[]
   plan: { entry: number; stop: number; target: number; rewardRisk: number; riskPct: number; stopBasis: string; targetBasis: string }
@@ -35,39 +41,7 @@ export interface Analysis {
   technical: Technical | null; position: PositionSize | null; watch: { alertPrice: number; zone: string } | null
   metrics: { close: number | null; adtvCr: number | null; marketCapCr: number | null; pe: number | null }; configVersion: number; dataNotes: string[]
 }
-export interface ScreenerRow {
-  id: number; symbol: string; name: string | null; sector: string | null; asOfDate: string; totalScore: number; coverage: number; verdict: Verdict
-  gateTriggered: boolean; valuationStretched: boolean; technicalReady: boolean; template: string; close: number | null; adtvCr: number | null
-  marketCapCr: number | null; alertPrice: number | null; reason: string; configVersion: number
-}
-export interface ScreenerResp { page: number; pageSize: number; total: number; counts: Partial<Record<Verdict, number>>; sectors: string[]; lastRun: string | null; rows: ScreenerRow[] }
-export interface RunState {
-  running: boolean; step: string; done: number; total: number; startedAt: string | null; finishedAt: string | null; error: string | null
-  counts: { BUY: number; WAIT: number; AVOID: number; failed: number }; llm?: { open: boolean; health: { ok: boolean; model?: string } | null }
-}
-export interface WatchItem {
-  id: number; symbol: string; alertPrice: number | null; zone: string | null; note: string | null; verdict: Verdict | null; totalScore: number | null
-  asOfDate: string | null; close: number | null; reason: string | null; distancePct: number | null; triggeredAt: string | null; addedAt: string
-}
 export interface FlagRow { id: number; symbol: string; category: string; level: number; title: string; source: string; status: string; link: string | null; detectedOn: string | null; reviewedAt: string | null }
-export interface Band { good: number; bad: number }
-export interface SelectionConfig {
-  version: number; note: string; weights: Record<string, number>
-  verdict: { buyMin: number; waitMin: number; minCoverageForBuy: number }
-  gates: { interestCoverageBelow: number; pledgeAbovePct: number; minAdtvCr: number; surveillanceIsGate: boolean; negCfoYearsWithProfit: number }
-  penalties: { level2Points: number }
-  technical: { extendedAboveEma50Pct: number; minRewardRisk: number; volumeMultiple: number; zoneAtrMultiple: number }
-  risk: { capitalInr: number; riskPct: number; capLargePct: number; capMidSmallPct: number; liquidityPctOfAdtv: number; largeCapMinCr: number; sectorCapPct: number; totalOpenRiskPct: number }
-  universe: { minAdtvCr: number; maxStocks: number }
-  gSecYieldPct: number
-  thresholds: Record<string, Band>
-  templates: Record<string, { key: string; label: string; description: string; skipSteps: number[]; skipMetrics: string[]; overrides: Record<string, Band> }>
-}
-export interface PortfolioRisk {
-  capital: number; invested: number; investedPct: number; totalOpenRisk: number; totalOpenRiskPct: number; limits: { sectorCapPct: number; totalOpenRiskPct: number }
-  breaches: string[]; sectors: { sector: string; value: number; pct: number; overCap: boolean }[]
-  positions: { id: number; symbol: string; sector: string | null; qty: number; entry: number; stop: number; target: number | null; price: number; value: number; openRisk: number }[]
-}
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init)
@@ -86,30 +60,12 @@ const qs = (o: Record<string, string | number | boolean | undefined | null>) =>
   new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false).map(([k, v]) => [k, String(v)])).toString()
 
 export const sel = {
-  screener: (q: Record<string, string | number | boolean | undefined>) => j<ScreenerResp>(`/api/v1/screener?${qs(q)}`),
   analysis: (s: string, refresh = false) => j<Analysis>(`/api/v1/stocks/${encodeURIComponent(s)}/analysis${refresh ? '?refresh=1' : ''}`),
   history: (s: string) => j<{ id: number; asOfDate: string; totalScore: number; verdict: Verdict; close: number | null }[]>(`/api/v1/stocks/${encodeURIComponent(s)}/history`),
   prices: (s: string, range = '1y') => j<{ bars: { date: string; open: number; high: number; low: number; close: number; volume: number }[] }>(`/api/v1/stocks/${encodeURIComponent(s)}/prices?range=${range}`),
   explain: (s: string, refresh = false) => j<{ text: string; model: string; grounded: boolean; cached: boolean }>(`/api/v1/stocks/${encodeURIComponent(s)}/explain${refresh ? '?refresh=1' : ''}`, send('POST')),
-  search: (q: string) => j<{ symbol: string; name: string | null; sector: string | null; verdict: Verdict | null; totalScore: number | null }[]>(`/api/v1/stocks?${qs({ query: q })}`),
-  run: (symbols?: string[]) => j<{ started: boolean; state: RunState }>('/api/v1/selection/run', send('POST', symbols ? { symbols } : {})),
-  state: () => j<RunState>('/api/v1/selection/state'),
-  positionSize: (b: { capital: number; riskPct: number; entry: number; stop: number; target?: number; symbol?: string; adtvCr?: number; marketCapCr?: number }) =>
-    j<PositionSize & { inputs: { adtvCr: number | null; marketCapCr: number | null }; limits: SelectionConfig['risk'] }>('/api/v1/risk/position-size', send('POST', b)),
-  watchlist: () => j<WatchItem[]>('/api/v1/watchlist'),
-  watch: (b: { symbol: string; alertPrice?: number; zone?: string; note?: string }) => j<unknown>('/api/v1/watchlist', send('POST', b)),
-  unwatch: (s: string) => j<unknown>(`/api/v1/watchlist/${encodeURIComponent(s)}`, send('DELETE')),
   flags: (status?: string, symbol?: string) => j<FlagRow[]>(`/api/v1/flags?${qs({ status, symbol })}`),
   reviewFlag: (id: number, status: 'confirmed' | 'resolved' | 'suggested') => j<unknown>(`/api/v1/flags/${id}`, send('PATCH', { status })),
-  addFlag: (symbol: string, b: { category: string; level: number; title: string; link?: string }) => j<unknown>(`/api/v1/stocks/${encodeURIComponent(symbol)}/flags`, send('POST', b)),
-  config: () => j<SelectionConfig>('/api/v1/config/thresholds'),
-  versions: () => j<{ version: number; note: string; active: boolean; createdAt: string }[]>('/api/v1/config/thresholds/versions'),
-  saveConfig: (config: SelectionConfig, note: string) => j<SelectionConfig>('/api/v1/config/thresholds', send('PUT', { config, note })),
-  activate: (v: number) => j<SelectionConfig>(`/api/v1/config/thresholds/versions/${v}/activate`, send('POST')),
-  positions: () => j<unknown[]>('/api/v1/portfolio/positions'),
-  addPosition: (b: { symbol: string; qty: number; entry: number; stop: number; target?: number }) => j<unknown>('/api/v1/portfolio/positions', send('POST', b)),
-  removePosition: (id: number) => j<unknown>(`/api/v1/portfolio/positions/${id}`, send('DELETE')),
-  portfolioRisk: () => j<PortfolioRisk>('/api/v1/portfolio/risk'),
 }
 
 export const VERDICT_STYLE: Record<Verdict, string> = { BUY: 'bg-pos text-white', WAIT: 'bg-amber-bg text-amber', AVOID: 'bg-neg-bg text-neg' }

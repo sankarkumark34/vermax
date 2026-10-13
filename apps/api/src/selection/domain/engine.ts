@@ -17,7 +17,11 @@ import { positionSize, type PositionSize } from './risk.js';
 import { technicalEntry, type TechnicalEntry } from './technical.js';
 import type { AnalysisContext, Catalyst, RedFlag, SharedFacts, StepResult, Verdict } from './types.js';
 
+/** Bump when the shape or logic of AnalysisResult changes: stored runs from older engines are recomputed, not served. */
+export const ENGINE_VERSION = 2;
+
 export interface AnalysisResult {
+  engineVersion?: number;
   symbol: string;
   name: string | null;
   sector: string | null;
@@ -177,6 +181,7 @@ export function analyzeStock(ctx: AnalysisContext): AnalysisResult {
     watch: decision.verdict === 'WAIT' ? tech?.watch ?? null : null,
     metrics: { close: tech?.close ?? ctx.prices.at(-1)?.close ?? null, adtvCr: shared.adtvCr == null ? null : Math.round(shared.adtvCr * 10) / 10, marketCapCr: st?.marketCapCr ?? null, pe: st?.pe ?? null },
     configVersion: cfg.version,
+    engineVersion: ENGINE_VERSION,
     dataNotes,
   };
 }

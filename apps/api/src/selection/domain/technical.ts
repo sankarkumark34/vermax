@@ -6,12 +6,16 @@
  * Fibonacci is never a level on its own: the golden zone only counts when it coincides with a support zone or the
  * 50-day EMA (confluence), and the candle trigger with volume is always required on top.
  */
-import { emaSeries, fairValueGaps, fibonacci, findSwings, rsiSeries, type Swing } from '../../analysis/technicals.js';
+import { emaSeries, fairValueGaps, fibonacci, findSwings, marketStructure, rsiSeries, type Swing } from '../../analysis/technicals.js';
 import type { SelectionConfig } from './config.js';
 import type { IndexPoint, PriceBar } from './types.js';
 
 export interface Zone { low: number; high: number; touches: number; kind: 'support' | 'resistance' }
 export interface CandlePattern { date: string; name: string; bullish: boolean; volumeRatio: number }
+
+export interface VolumeProfile { poc: number; vah: number; val: number; hvn: number[]; lvn: number[]; lookback: number }
+export interface OrderBlock { date: string; low: number; high: number; mitigated: boolean }
+export interface LiquiditySweep { date: string; level: number; low: number; close: number }
 
 export interface TradePlan { entry: number; stop: number; target: number; rewardRisk: number; riskPct: number; stopBasis: string; targetBasis: string }
 
@@ -34,6 +38,12 @@ export interface TechnicalEntry {
   fib: ReturnType<typeof fibonacci>;
   inFibGolden: boolean;
   inBullFvg: { top: number; bottom: number } | null;
+  /** Phase-2 structure tools (proposal 6.5): volume profile, BOS / CHoCH, order block, liquidity sweep */
+  volumeProfile: VolumeProfile | null;
+  lastStructure: { type: 'BOS' | 'CHoCH'; dir: 'up' | 'down'; date: string; level: number } | null;
+  orderBlock: OrderBlock | null;
+  liquiditySweep: LiquiditySweep | null;
+  targets: { price: number; basis: string; pct: number }[];
   rs: { m3: number | null; m6: number | null };
   extendedPct: number;
   checks: { trendOk: boolean; atLevel: boolean; triggerConfirmed: boolean; extended: boolean; rewardRisk: number; rrOk: boolean };
@@ -117,6 +127,62 @@ function relStrength(b: PriceBar[], idx: IndexPoint[], n: number): number | null
   return r2((sr - ir) * 100);
 }
 
+/** Volume-at-price over the last `lookback` sessions: each bar's volume spread evenly over its high-low range. */
+export function volumeProfile(b: PriceBar[], lookback = 120, bins = 30): VolumeProfile | null {
+  const w = b.slice(-lookback);
+  if (w.length < 30) return null;
+  const lo = Math.min(...w.map((x) => x.low)), hi = Math.max(...w.map((x) => x.high));
+  if (!(hi > lo)) return null;
+  const step = (hi - lo) / bins;
+  const vol = new Array<number>(bins).fill(0);
+  for (const x of w) {
+    const a = Math.max(0, Math.min(bins - 1, Math.floor((x.low - lo) / step)));
+    const z = Math.max(0, Math.min(bins - 1, Math.floor((x.high - lo) / step)));
+    for (let k = a; k <= z; k++) vol[k] += x.volume / (z - a + 1);
+  }
+  const mid = (k: number) => r2(lo + (k + 0.5) * step);
+  const pocK = vol.indexOf(Math.max(...vol));
+  // value area: expand from the POC until 70% of the volume is covered
+  const total = vol.reduce((s, v) => s + v, 0);
+  let lk = pocK, hk = pocK, acc = vol[pocK];
+  while (acc < total * 0.7 && (lk > 0 || hk < bins - 1)) {
+    const down = lk > 0 ? vol[lk - 1] : -1, up = hk < bins - 1 ? vol[hk + 1] : -1;
+    if (up >= down) acc += vol[++hk]; else acc += vol[--lk];
+  }
+  const avg = total / bins;
+  return {
+    poc: mid(pocK), val: r2(lo + lk * step), vah: r2(lo + (hk + 1) * step),
+    hvn: vol.map((v, k) => [v, k] as const).filter(([v]) => v >= avg * 1.3).map(([, k]) => mid(k)),
+    lvn: vol.map((v, k) => [v, k] as const).filter(([v]) => v <= avg * 0.5).map(([, k]) => mid(k)),
+    lookback: w.length,
+  };
+}
+
+/** Last bearish candle before the impulse that produced a bullish BOS / CHoCH; valid until a close below its low. */
+export function bullishOrderBlock(b: PriceBar[], events: { i: number; dir: 'up' | 'down' }[]): OrderBlock | null {
+  for (const e of [...events].reverse()) {
+    if (e.dir !== 'up') continue;
+    for (let k = e.i - 1; k >= Math.max(1, e.i - 15); k--) {
+      if (b[k].close < b[k].open) {
+        const mitigated = b.slice(k + 1).some((x) => x.close < b[k].low);
+        if (!mitigated) return { date: b[k].date, low: r2(b[k].low), high: r2(b[k].high), mitigated };
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+/** Bullish liquidity sweep in the last 5 sessions: a wick below the last swing low that closed back above it. */
+export function bullishSweep(b: PriceBar[], swings: Swing[]): LiquiditySweep | null {
+  const n = b.length;
+  for (let k = n - 1; k >= Math.max(1, n - 5); k--) {
+    const prior = [...swings].reverse().find((s) => s.kind === 'L' && s.i + 3 <= k - 1);
+    if (prior && b[k].low < prior.price && b[k].close > prior.price) return { date: b[k].date, level: r2(prior.price), low: r2(b[k].low), close: r2(b[k].close) };
+  }
+  return null;
+}
+
 export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: SelectionConfig['technical']): TechnicalEntry | null {
   if (b.length < 60) return null;
   const close = b.map((x) => x.close);
@@ -133,7 +199,8 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
 
   const recent = b.slice(-250);
   const offset = n - recent.length;
-  const swings = findSwings(recent).map((s) => ({ ...s, i: s.i + offset }));
+  const localSwings = findSwings(recent);                  // indices relative to `recent`
+  const swings = localSwings.map((s) => ({ ...s, i: s.i + offset }));
   const lastH = [...swings].reverse().find((s) => s.kind === 'H');
   const lastL = [...swings].reverse().find((s) => s.kind === 'L');
   const tol = Math.max(cfg.zoneAtrMultiple * atr, c * 0.01);
@@ -166,6 +233,17 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
   const fib = fibonacci(b);
   const inFibGolden = !!fib && fib.dir === 'up' && /golden/.test(fib.zone);
   if (inFibGolden && (inSupport || nearEma50)) levelReasons.push('Fibonacci 50-61.8% zone in confluence with support');
+  const vp = volumeProfile(b);
+  const nearPoc = !!vp && vp.poc < c && low3 <= vp.poc + tol * 0.5 && c >= vp.poc - tol * 0.5;
+  if (nearPoc) levelReasons.push(`held the volume point of control ₹${vp!.poc}`);
+  const ms = marketStructure(recent, localSwings);
+  const lastEv = ms.events.at(-1) ?? null;
+  const lastStructure = lastEv ? { type: lastEv.type, dir: lastEv.dir, date: lastEv.date, level: r2(lastEv.level) } : null;
+  const ob = bullishOrderBlock(recent, ms.events);
+  const inOb = !!ob && low3 <= ob.high && c >= ob.low;
+  if (inOb) levelReasons.push(`inside a bullish order block ₹${ob!.low}-${ob!.high} (${ob!.date})`);
+  const sweep = bullishSweep(recent, localSwings);
+  if (sweep) levelReasons.push(`liquidity sweep: wicked below ₹${sweep.level} and closed back above (${sweep.date})`);
 
   // breakout above a resistance zone within the last 20 sessions, then a retest that held
   let breakout: TechnicalEntry['breakout'] = null;
@@ -182,11 +260,11 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
     if (breakout) break;
   }
   if (breakout?.retested) levelReasons.push(`retest of the breakout level ₹${breakout.level} held`);
-  const atLevel = inSupport || nearEma50 || !!fvg || !!breakout?.retested;
+  const atLevel = inSupport || nearEma50 || !!fvg || !!breakout?.retested || nearPoc || inOb || !!sweep;
 
   // ---- trigger -------------------------------------------------------------------------------
   const patterns = candlePatterns(b, 3);
-  const trig = patterns.filter((p) => p.bullish && p.date >= b[n - 2].date && p.volumeRatio >= cfg.volumeMultiple);
+  const trig = patterns.filter((p) => p.bullish && p.date >= b[n - 3].date && p.volumeRatio >= cfg.volumeMultiple);
   const triggerConfirmed = trig.length > 0;
 
   const extendedPct = r2((c / ema50 - 1) * 100);
@@ -204,6 +282,9 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
   if ((c - stop) / c > 0.15 || stop >= c) {
     stop = c - 2 * atr;
     stopBasis = '2 × ATR below the close (structure too far away)';
+  } else if (c - stop < atr) {
+    stop = c - atr;                                 // a stop inside one day's normal range gets hit by noise
+    stopBasis += '; widened to 1 × ATR (structure was inside normal daily noise)';
   }
   let target: number, targetBasis: string;
   if (resistance) {
@@ -215,13 +296,17 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
     targetBasis = ext ? `Fibonacci ${ext.ratio} extension (no resistance overhead)` : '3R (price at highs, no resistance overhead)';
   }
   const rewardRisk = r2((target - c) / (c - stop));
+  const targets: TechnicalEntry['targets'] = [];
+  if (resistance) targets.push({ price: resistance.low, basis: 'next resistance', pct: r2((resistance.low / c - 1) * 100) });
+  if (fib?.dir === 'up') for (const l of fib.levels.filter((x) => x.kind === 'extension' && x.price > c)) targets.push({ price: l.price, basis: `Fibonacci ${l.ratio} extension`, pct: r2((l.price / c - 1) * 100) });
+  targets.sort((a, z) => a.price - z.price);
   const rrOk = rewardRisk >= cfg.minRewardRisk;
 
   const technicalReady = trendOk && atLevel && triggerConfirmed && !extended && rrOk;
   const reasons: string[] = [];
   if (!trendOk) reasons.push(ema200 != null && c <= ema200 ? 'price is below the 200-day EMA' : 'no higher-high / higher-low structure');
   if (!atLevel) reasons.push('price is not at a support, EMA50, fair value gap or breakout-retest level');
-  if (!triggerConfirmed) reasons.push(`no bullish candle trigger with volume ≥ ${cfg.volumeMultiple}× the 20-day average`);
+  if (!triggerConfirmed) reasons.push(`no bullish candle trigger in the last 3 sessions with volume ≥ ${cfg.volumeMultiple}× the 20-day average`);
   if (extended) reasons.push(`price is ${extendedPct}% above the 50-day EMA (limit ${cfg.extendedAboveEma50Pct}%)`);
   if (!rrOk) reasons.push(`reward : risk is 1 : ${rewardRisk} (needs 1 : ${cfg.minRewardRisk})`);
 
@@ -252,6 +337,7 @@ export function technicalEntry(b: PriceBar[], benchmark: IndexPoint[], cfg: Sele
     breakout,
     fib, inFibGolden,
     inBullFvg: fvg ? { top: fvg.top, bottom: fvg.bottom } : null,
+    volumeProfile: vp, lastStructure, orderBlock: ob, liquiditySweep: sweep, targets,
     rs: { m3: relStrength(b, benchmark, 63), m6: relStrength(b, benchmark, 126) },
     extendedPct,
     checks: { trendOk, atLevel, triggerConfirmed, extended, rewardRisk, rrOk },

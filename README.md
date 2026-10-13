@@ -7,7 +7,7 @@ Daily "what to buy tomorrow" list for Indian equities: **stop-loss, two targets,
 apps/api      NestJS (port 4100)  ingest NSE data · pipeline · 18-step selection engine (/api/v1) · sentiment · alerts · scheduler · serves the UI
 ml/           Python (LightGBM)   features · walk-forward research · blend model · scorer · fundamentals · company data · screeners · health
 services/llm  Python FastAPI      optional LLM service (port 8100): verdict explanations · filing classification · business summaries
-apps/web      React + Vite        Tomorrow · Screener · Watchlist · Risk & Portfolio · Red flags · Stock Analysis · IPO pages · Settings
+apps/web      React + Vite        Top Picks · Verdict · IPO Stocks · IPO Screener · Stock chart
 scripts/   start-vermax.cmd (auto-restart supervisor) · install/uninstall-autostart.cmd · .env.example.cmd
 data/      market.sqlite (NSE EOD since 2019) · derivs.sqlite (FII/F&O OI) · picks/ · models/ · research/ · screener/
 docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf
@@ -27,10 +27,10 @@ docs/      BACKTEST.md (generated) · Vermax-Technical-Documentation.pdf
    Size = **0.5% risk** ÷ stop distance (max 20% per stock; halved when Nifty < 200-DMA).
 7. **Publish & track**: run stored, every pick paper-traded with the same rules; Telegram summary (optional); screener/IPO caches refreshed.
 
-## Stock selection: 18-step BUY / WAIT / AVOID (weekdays 19:30 IST)
+## 18-step analysis: BUY / WAIT / AVOID
 
 Implements the *Stock Selection Platform* proposal on Vermax's stack (SQLite + TypeORM instead of MySQL + Prisma).
-Every liquid NSE stock (50-day traded value ≥ ₹5 Cr, up to 800) runs through a fixed pipeline:
+Every Top Picks survivor (and any symbol opened from the search box) runs through a fixed pipeline:
 
 | Phase | Steps (weight) |
 |---|---|
@@ -56,14 +56,25 @@ API (`/api/v1`, Swagger at `/docs`): `GET screener`, `GET stocks/:symbol/analysi
 `POST risk/position-size`, `GET|POST|DELETE watchlist`, `portfolio/positions`, `GET portfolio/risk`, `GET|PATCH flags`,
 `GET|PUT config/thresholds` (+ `versions`, `activate`), `POST selection/run`, `GET selection/state`, `GET jobs`.
 
+## Top Picks (home screen, weekdays 19:30 IST)
+
+1. Every liquid NSE company (≥ ₹5 Cr/day, price ≥ ₹200; ETFs / fund units excluded) on split-adjusted closes:
+   closed positive in the **last completed week, month, quarter and financial year** (Apr-Mar), **≥ 2 positive months in a row**,
+   and **no major fall**: ≤ 15% drawdown in 3 months, within 10% of the 3-month high, every 7%+ dip recovered within 20 sessions,
+   no week worse than −10%.
+2. Survivors go through the 18-step analysis below (gates, fundamentals, valuation, technical entry incl. Fibonacci retracement /
+   extension, candles, support/resistance, BOS/CHoCH, order blocks, liquidity sweeps, volume profile).
+3. Gated or weak-fundamental stocks are rejected; the rest ranked by 40% momentum (percentile vs the whole market),
+   35% fundamentals, 25% technical setup. Each row shows a tick per check and entry / stop / target.
+4. A month-end backtest (2021 →, survivorship-safe, 0.4% costs) of the price rules, rule by rule, is shown on the page.
+
+API: `GET /api/v1/top-picks`, `POST /api/v1/top-picks/run`, `GET /api/v1/top-picks/state`, `GET|POST /api/v1/top-picks/backtest`.
+Criteria live in the versioned config (`winners` section of `/api/v1/config/thresholds`).
+
 ## Screens
-* **Screener** — latest verdict for every analysed stock; filter by verdict, minimum score, sector, traded value, entry-ready; Run analysis.
-* **Verdict** (`/verdict/:symbol`, sidebar search) — verdict and score first, gates and red flags, plain-language explanation,
-  price chart with entry/stop/target/watch level, entry checklist, position size, 18-step scorecard by phase, catalysts, history.
-* **Watchlist** — WAIT stocks with alert level and distance; Telegram alert when one turns BUY or reaches its level.
-* **Risk & Portfolio** — position-size calculator (risk / cap / liquidity) and open positions against sector and open-risk limits.
-* **Red flags** — review queue for flags suggested from filings (confirm → applies, dismiss → ignored), plus manual flags.
-* **Settings** — weights, gates, thresholds, risk limits, sector templates, version history.
+* **Top Picks** — the list above, with funnel, backtest and near misses.
+* **Verdict** (`/verdict/:symbol`, sidebar search) — full 18-step scorecard, gates and red flags, entry plan with Fibonacci targets,
+  structure tools, chart, plain-language explanation.
 * **IPOs** — main-board listings from the NSE equity master (official listing date): listing price, since-listing return,
   every period available since listing, from-high, live prices.
 * **Stock** — NSE close + delayed live price, chart (5D–1Y, EMA/DMA/volume), lower-circuit recovery history, fundamentals, news.
@@ -113,7 +124,7 @@ as untrusted data, versioned prompts, results cached by content hash. Set `LLM_S
 Research: `python -m vermax.xsection` → `python -m vermax.report` (docs/BACKTEST.md); `python -m vermax.experiments [derivs]`.
 
 Config via env: `PICKS_MIN_PRICE/MAX_PRICE` (200/650), `CAPITAL`, `RISK_PER_TRADE` (0.005), `PORT`, `PYTHON_BIN`,
-`DAILY_CRON`, `RETRY_CRON`, `WATCHDOG_CRON`, `RETRAIN_CRON`, `SELECTION_CRON` (`30 19 * * 1-5`), `SCHEDULER_ENABLED`, `TELEGRAM_*`,
+`DAILY_CRON`, `RETRY_CRON`, `WATCHDOG_CRON`, `RETRAIN_CRON`, `WINNERS_CRON` (`30 19 * * 1-5`), `SCHEDULER_ENABLED`, `TELEGRAM_*`,
 `LLM_SERVICE_URL` (`http://127.0.0.1:8100`), `LLM_SERVICE_TOKEN`.
 
 ## Not financial advice
