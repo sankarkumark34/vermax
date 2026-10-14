@@ -292,12 +292,13 @@ export class NseArchivesProvider implements MarketDataProvider {
       }));
   }
 
-  async fetchUniverse(): Promise<UniverseMember[]> {
-    const p = this.cachePath('universe', 'nifty500.csv');
+  /** Nifty 500 (default) or Nifty Total Market (Nifty 500 + Microcap 250, ~750 stocks) with NSE's sector ("Industry"). */
+  async fetchUniverse(list: 'nifty500' | 'totalmarket' = 'nifty500'): Promise<UniverseMember[]> {
+    const p = this.cachePath('universe', `${list}.csv`);
     const stale = !fs.existsSync(p) || Date.now() - fs.statSync(p).mtimeMs > 7 * 86_400_000;
     let text: string;
     if (stale) {
-      const buf = await this.download('https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv');
+      const buf = await this.download(`https://nsearchives.nseindia.com/content/indices/${list === 'nifty500' ? 'ind_nifty500list.csv' : 'ind_niftytotalmarket_list.csv'}`);
       if (!buf) {
         if (fs.existsSync(p)) text = fs.readFileSync(p, 'utf8');
         else return [];

@@ -76,7 +76,7 @@ export interface MarketDataProvider {
   fetchEquityBars(date: string): Promise<RawEquityBar[]>;
   fetchIndexBars(date: string): Promise<RawIndexBar[]>;
   fetchDelivery(date: string): Promise<Map<string, RawDelivery>>;
-  fetchUniverse(): Promise<UniverseMember[]>;
+  fetchUniverse(list?: 'nifty500' | 'totalmarket'): Promise<UniverseMember[]>;
   /** Full list of listed equities with company names (for search / display). */
   fetchSymbolMaster(): Promise<SymbolMasterRow[]>;
 }

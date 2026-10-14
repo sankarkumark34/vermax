@@ -71,12 +71,15 @@ def main(argv: list[str]) -> None:
     elif cmd == "surveillance":
         from .company import surveillance
         out = surveillance()
+    elif cmd == "sector-map":
+        from .sectors import sector_map
+        out = sector_map(args["symbols"], fetch=args.get("fetch", True))
     elif cmd == "fundamentals":
         from .fundamentals import fetch_many
         out = fetch_many(args["symbols"], args.get("sectors"))
     else:
         out = {"commands": ["train", "score", "track", "fundamentals", "ipos", "ipo-quality", "analyse", "ipo-study", "health", "derivs",
-                            "company", "company-batch", "sector-medians", "surveillance"]}
+                            "company", "company-batch", "sector-medians", "surveillance", "sector-map"]}
     sys.stdout.write("\n" + json.dumps(out, default=str) + "\n")
 
 

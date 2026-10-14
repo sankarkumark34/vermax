@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Loader2, RefreshCw, Rocket, Search, ShieldCheck, Trophy } from 'lucide-react'
+import { BadgeCheck, LayoutGrid, Loader2, RefreshCw, Rocket, Search, ShieldCheck, Trophy } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate } from 'react-router'
 import { api } from './lib/api'
 import { tp } from './lib/topPicks'
 import IpoStocks from './pages/IpoStocks'
 import Ipos from './pages/Ipos'
+import Sectors from './pages/Sectors'
 import Stock from './pages/Stock'
 import TopPicksPage from './pages/TopPicks'
 import Steady from './pages/Steady'
@@ -13,6 +14,7 @@ import VerdictPage from './pages/Verdict'
 
 const nav = [
   { to: '/', label: 'Top Picks', icon: Trophy },
+  { to: '/sectors', label: 'Sector Leaders', icon: LayoutGrid },
   { to: '/steady', label: 'Steady Picks', icon: ShieldCheck },
   { to: '/ipo-stocks', label: 'IPO Stocks', icon: BadgeCheck },
   { to: '/ipos', label: 'IPO Screener', icon: Rocket },
@@ -110,6 +112,7 @@ export default function App() {
             <Route path="/" element={<TopPicksPage />} />
             <Route path="/verdict/:symbol" element={<VerdictPage />} />
             <Route path="/stock/:symbol" element={<Stock />} />
+            <Route path="/sectors" element={<Sectors />} />
             <Route path="/steady" element={<Steady />} />
             <Route path="/ipo-stocks" element={<IpoStocks />} />
             <Route path="/ipos" element={<Ipos />} />

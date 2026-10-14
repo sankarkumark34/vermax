@@ -160,7 +160,7 @@ export class DataService {
     return { from, to, storedDays: stored, holidays, errors, latestDate: await this.latestDate() };
   }
 
-  /** Refresh company names / sectors from the NSE master + Nifty 500 list (used for sector mapping). */
+  /** Refresh company names / sectors from the NSE master + Nifty 500 and Total Market lists (used for sector mapping). */
   async syncUniverse(): Promise<number> {
     const members = await this.provider.fetchUniverse();
     for (const m of members) {
@@ -175,6 +175,20 @@ export class DataService {
       } else {
         await this.stocks.insert({ symbol: m.symbol, name: m.name, isin: m.isin, sector: m.industry, industry: m.industry, inNifty500: true, firstDate: null, lastDate: null });
       }
+    }
+    // NSE classifies the Microcap 250 too (Total Market list): sector only, these are not Nifty 500 members
+    try {
+      const in500 = new Set(members.map((m) => m.symbol));
+      const extra = (await this.provider.fetchUniverse('totalmarket')).filter((m) => !in500.has(m.symbol));
+      const existing = new Set((await this.stocks.find({ select: { symbol: true } })).map((s) => s.symbol));
+      await this.ds.transaction(async (em) => {
+        for (const m of extra) {
+          if (existing.has(m.symbol)) await em.update(StockEntity, { symbol: m.symbol }, { sector: m.industry, industry: m.industry });
+          else await em.insert(StockEntity, { symbol: m.symbol, name: m.name, isin: m.isin, sector: m.industry, industry: m.industry, inNifty500: false, firstDate: null, lastDate: null });
+        }
+      });
+    } catch (err) {
+      this.log.warn(`total market sector sync failed: ${(err as Error).message}`);
     }
     try {
       const master = await this.provider.fetchSymbolMaster();

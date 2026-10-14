@@ -51,16 +51,21 @@ export function rejected(a: AnalysisResult, waitMin: number): string | null {
   return null;
 }
 
+/** 0-100: market percentile of the 3-month, 6-month and 1-year returns (75%) plus the share of up weeks / months (25%). */
+export function momentumScore(s: ScreenResult, market: MarketDistribution): number {
+  const w = s.weeksUp.total ? s.weeksUp.up / s.weeksUp.total : 0.5;
+  const m = s.monthsUp.total ? s.monthsUp.up / s.monthsUp.total : 0.5;
+  const pr = (percentileIn(market.ret3m, s.ret3m) + percentileIn(market.ret6m, s.ret6m) + percentileIn(market.ret1y, s.ret1y)) / 3;
+  return Math.round((pr * 0.75 + ((w + m) / 2) * 0.25) * 1000) / 10;
+}
+
 export function rankWinners(rows: RankInput[], market: MarketDistribution): RankedRow[] {
   const ranked = rows.map((r) => {
-    const w = r.screen.weeksUp.total ? r.screen.weeksUp.up / r.screen.weeksUp.total : 0.5;
-    const m = r.screen.monthsUp.total ? r.screen.monthsUp.up / r.screen.monthsUp.total : 0.5;
-    const pr = (percentileIn(market.ret3m, r.screen.ret3m) + percentileIn(market.ret6m, r.screen.ret6m) + percentileIn(market.ret1y, r.screen.ret1y)) / 3;
-    const momentumScore = Math.round((pr * 0.75 + ((w + m) / 2) * 0.25) * 1000) / 10;
+    const momentum = momentumScore(r.screen, market);
     const technicalScore = technicalPoints(r.analysis);
     const fundamentalScore = r.analysis.totalScore;
-    const composite = Math.round((0.4 * momentumScore + 0.35 * fundamentalScore + 0.25 * technicalScore) * 10) / 10;
-    return { ...r, momentumScore, technicalScore, fundamentalScore, composite, rank: 0, action: (r.analysis.verdict === 'BUY' ? 'BUY now' : 'Wait for entry') as RankedRow['action'] };
+    const composite = Math.round((0.4 * momentum + 0.35 * fundamentalScore + 0.25 * technicalScore) * 10) / 10;
+    return { ...r, momentumScore: momentum, technicalScore, fundamentalScore, composite, rank: 0, action: (r.analysis.verdict === 'BUY' ? 'BUY now' : 'Wait for entry') as RankedRow['action'] };
   });
   ranked.sort((a, b) => (b.action === 'BUY now' ? 1 : 0) - (a.action === 'BUY now' ? 1 : 0) || b.composite - a.composite);
   ranked.forEach((r, i) => (r.rank = i + 1));

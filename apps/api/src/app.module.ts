@@ -14,6 +14,8 @@ import { LlmClientService } from './selection/llm-client.service.js';
 import { PortfolioService } from './selection/portfolio.service.js';
 import { SelectionController } from './selection/selection.controller.js';
 import { SelectionService } from './selection/selection.service.js';
+import { SectorsController } from './sectors/sectors.controller.js';
+import { SectorsService } from './sectors/sectors.service.js';
 import { SteadyController } from './steady/steady.controller.js';
 import { SteadyService } from './steady/steady.service.js';
 import { WinnersController } from './winners/winners.controller.js';
@@ -21,8 +23,8 @@ import { WinnersService } from './winners/winners.service.js';
 
 @Module({
   imports: [ScheduleModule.forRoot(), DatabaseModule, DataModule],
-  controllers: [ApiController, SelectionController, WinnersController, SteadyController],
+  controllers: [ApiController, SelectionController, WinnersController, SteadyController, SectorsController],
   providers: [NotifyService, CircuitService, QuoteService, PythonBridgeService, SentimentService, PicksService, SchedulerService,
-    SelectionService, PortfolioService, LlmClientService, WinnersService, SteadyService],
+    SelectionService, PortfolioService, LlmClientService, WinnersService, SteadyService, SectorsService],
 })
 export class AppModule {}
