@@ -254,6 +254,16 @@ export class SelectionService {
     return qb.orderBy('r.asOfDate', 'DESC').addOrderBy('r.id', 'DESC').getOne();
   }
 
+  /** Today's stored analysis for a symbol if it is still current (same bar, config and engine); null otherwise. */
+  async stored(symbol: string): Promise<AnalysisResult | null> {
+    const run = await this.latestRun(symbol);
+    if (!run) return null;
+    const [latestBar] = await this.ds.query('SELECT MAX(date) AS d FROM daily_bars WHERE symbol = ?', [symbol]) as { d: string | null }[];
+    const cfg = await this.getConfig();
+    const r = JSON.parse(run.payload) as AnalysisResult;
+    return r.engineVersion === ENGINE_VERSION && run.asOfDate === latestBar?.d && run.configVersion === cfg.version ? r : null;
+  }
+
   async analysis(symbol: string, opts: { date?: string; refresh?: boolean }): Promise<AnalysisResult & { runId: number; cached: boolean }> {
     if (!opts.refresh) {
       const run = await this.latestRun(symbol, opts.date);

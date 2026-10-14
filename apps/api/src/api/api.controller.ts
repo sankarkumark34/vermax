@@ -175,64 +175,6 @@ export class ApiController {
     return { ...(this.ipoRated.data as object), building: this.ipoQualityBuilding, stale: file !== path.basename(want) };
   }
 
-  private trustedWorking = false;
-  private trustedFailed = new Map<string, number>();
-
-  /**
-   * Steady IPOs: the price screen (never below the listing price, monthly / quarterly closes up, RSI) comes from Python;
-   * each candidate then gets the Stock Analysis Buy score (fundamentals, valuation, risk, news) computed in the background
-   * (3 at a time, cached 30 min) and a "trusted" verdict (no red flag, liquid, real delivery buying, no lower circuit, clean news).
-   */
-  @Get('trusted')
-  async trusted() {
-    const latest = await this.data.latestDate();
-    const dir = path.join(this.cfg.repoRoot, 'data', 'screener');
-    const want = path.join(dir, `trusted-${latest}.json`);
-    if (!fs.existsSync(want) && !this.trustedWorking) {
-      this.trustedWorking = true;
-      void this.bridge.run('trusted', {}, 20 * 60_000).finally(() => (this.trustedWorking = false));
-    }
-    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^trusted-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort() : [];
-    if (!files.length) return { building: true, asOf: null, rows: [] };
-    const data = JSON.parse(fs.readFileSync(path.join(dir, files.at(-1)!), 'utf8')) as { rows: Record<string, any>[] };
-    const fresh = (sym: string) => {
-      const hit = this.analysisCache.get(sym);
-      return hit && Date.now() - hit.at < 30 * 60_000 ? (hit.data as Record<string, any>) : null;
-    };
-    const todo = data.rows.map((r) => r.symbol as string).filter((sym) => !fresh(sym) && Date.now() - (this.trustedFailed.get(sym) ?? 0) > 30 * 60_000);
-    if (todo.length && !this.analysing) {
-      this.analysing = true;
-      void (async () => {
-        try {
-          for (let i = 0; i < todo.length; i += 3)
-            await Promise.all(todo.slice(i, i + 3).map((sym) => this.buildAnalysis(sym, false).catch(() => this.trustedFailed.set(sym, Date.now()))));
-        } finally { this.analysing = false; }
-      })();
-    }
-    const rows = data.rows.map((r) => {
-      const a = fresh(r.symbol);
-      if (!a) return { ...r, analysis: null, trust: null, fundamentals: null };
-      const chk = new Map<string, boolean | null>((a.analysis.checks as { id: string; pass: boolean | null }[]).map((c) => [c.id, c.pass]));
-      const fails: string[] = [...(a.analysis.redFlags as string[])];
-      const need: [string, string][] = [['liq', 'thin trading (< ₹5 Cr a day)'], ['deliv', 'low delivery buying (< 35%)'], ['lc', 'lower circuit in the last 12 months'],
-        ['flags', 'red-flag headline'], ['news', 'negative news tone'], ['promoter', 'promoter holding below 40%']];
-      for (const [id, why] of need) if (chk.get(id) === false) fails.push(why);
-      const f = a.fundamentals ?? {};
-      return {
-        ...r,
-        fundamentals: { verdict: f.verdict ?? null, qualityScore: f.qualityScore ?? null, roe: f.roe3yAvg ?? f.roe ?? null, roce: f.roce ?? null, debtToEquity: f.debtToEquity ?? null,
-          salesCagr: f.salesCagr ?? null, profitCagr: f.profitCagr ?? null, pe: f.pe ?? null, marketCapCr: f.marketCapCr ?? null, insiderHolding: f.insiderHolding ?? null },
-        industryPe: a.industry?.pe ?? null,
-        analysis: { score: a.analysis.score, verdict: a.analysis.verdict, label: a.analysis.label, redFlags: a.analysis.redFlags, strengths: a.analysis.strengths, concerns: a.analysis.concerns, coverage: a.analysis.coverage },
-        trust: { ok: fails.length === 0, fails },
-        news: a.sentiment ? { label: a.sentiment.label, score: a.sentiment.score, headlines: a.sentiment.headlines } : null,
-      };
-    });
-    return { ...data, rows, pending: rows.filter((r) => !r.analysis).length, stale: files.at(-1) !== path.basename(want), building: this.trustedWorking || this.analysing };
-  }
-
-  private analysing = false;
-
   private ipoStudyBuilding = false;
 
   /** All-IPO study: time below issue / listing price, recovery, grouped by subscription. Newest file; rebuilt in background. */

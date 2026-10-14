@@ -8,12 +8,12 @@ import IpoStocks from './pages/IpoStocks'
 import Ipos from './pages/Ipos'
 import Stock from './pages/Stock'
 import TopPicksPage from './pages/TopPicks'
-import Trusted from './pages/Trusted'
+import Steady from './pages/Steady'
 import VerdictPage from './pages/Verdict'
 
 const nav = [
   { to: '/', label: 'Top Picks', icon: Trophy },
-  { to: '/trusted', label: 'Steady IPOs', icon: ShieldCheck },
+  { to: '/steady', label: 'Steady Picks', icon: ShieldCheck },
   { to: '/ipo-stocks', label: 'IPO Stocks', icon: BadgeCheck },
   { to: '/ipos', label: 'IPO Screener', icon: Rocket },
 ]
@@ -110,7 +110,7 @@ export default function App() {
             <Route path="/" element={<TopPicksPage />} />
             <Route path="/verdict/:symbol" element={<VerdictPage />} />
             <Route path="/stock/:symbol" element={<Stock />} />
-            <Route path="/trusted" element={<Trusted />} />
+            <Route path="/steady" element={<Steady />} />
             <Route path="/ipo-stocks" element={<IpoStocks />} />
             <Route path="/ipos" element={<Ipos />} />
           </Routes>

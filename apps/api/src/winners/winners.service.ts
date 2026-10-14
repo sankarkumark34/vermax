@@ -22,12 +22,12 @@ const istDay = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const BATCH = 20;
 
-interface RawRow { symbol: string; date: string; open: number; high: number; low: number; close: number; volume: number; prevClose: number; turnover: number | null; deliveryPct: number | null }
+export interface RawRow { symbol: string; date: string; open: number; high: number; low: number; close: number; volume: number; prevClose: number; turnover: number | null; deliveryPct: number | null }
 
 export interface WinnerState { running: boolean; step: string; done: number; total: number; startedAt: string | null; finishedAt: string | null; error: string | null }
 
 /** Slim row for the UI (the full 18-step result stays in analysis_runs). */
-function slim(r: RankedRow | { symbol: string; screen: ScreenResult; analysis: AnalysisResult }, extra: Record<string, unknown> = {}) {
+export function slim(r: RankedRow | { symbol: string; screen: ScreenResult; analysis: AnalysisResult }, extra: Record<string, unknown> = {}) {
   const a = r.analysis, t = a.technical;
   return {
     symbol: r.symbol, name: a.name, sector: a.sector, close: a.metrics.close, adtvCr: a.metrics.adtvCr, marketCapCr: a.metrics.marketCapCr,
